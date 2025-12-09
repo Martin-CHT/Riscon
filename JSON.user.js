@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name           Riscon: JSON
 // @namespace      https://github.com/Martin-CHT/Riscon
-// @version        7.3.1
-// @description    Vyplní formulář v RISCON APEX z JSONu a vytěží tisk zpět do JSONu.
+// @version        7.5.0
+// @description    Vyplní formulář z JSONu a vytěží tisk zpět do JSONu.
 // @author         Martin
 // @copyright      2025, Martin
 // @license        Proprietary - internal use only
