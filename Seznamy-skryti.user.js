@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Riscon – skrytí položek vseznamu
+// @name         Riscon – skrytí položek seznamu
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      1.0.0
+// @version      1.0.1
 // @description  Skrytí vybraných položek v levém seznamu (Save ukládá, změny nejsou auto-permanentní).
 // @author       Martin
 // @copyright    2025, Martin
@@ -9,20 +9,20 @@
 // @homepageURL  https://github.com/Martin-CHT/Riscon
 // @website      https://www.riscon.cz/
 // @source       https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Seznamy-skryti.user.js
+// @updateURL    https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Seznamy-skryti.user.js
+// @downloadURL  https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Seznamy-skryti.user.js
 // @supportURL   https://github.com/Martin-CHT/Riscon/issues
 // @icon         https://www.oracle.com/a/ocom/img/rest.svg
 // @icon64       https://www.oracle.com/a/ocom/img/rest.svg
-// @updateURL      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Seznamy-skryti.user.js
-// @downloadURL    https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Seznamy-skryti.user.js
 // @match        https://*/ords/*/f?p=110:*
 // @match        https://www.riscon.cz/go/f?p=110*
-// @icon         https://www.riscon.cz//i/favicon.ico
 // @noframes
-// @run-at         document-end
-// @tag            Riscon
-// @tag            BOZP
+// @run-at       document-end
+// @tag          Riscon
+// @tag          BOZP
 // @grant        none
 // ==/UserScript==
+
 
 (function () {
   'use strict';
