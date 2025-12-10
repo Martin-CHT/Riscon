@@ -8,12 +8,12 @@
 // @license      Proprietary - internal use only
 // @homepageURL  https://github.com/Martin-CHT/Riscon
 // @website      https://www.riscon.cz/
-// @source       https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Seznamy.user.js
+// @source       https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Seznamy-skryti.user.js
 // @supportURL   https://github.com/Martin-CHT/Riscon/issues
 // @icon         https://www.oracle.com/a/ocom/img/rest.svg
 // @icon64       https://www.oracle.com/a/ocom/img/rest.svg
-// @updateURL      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Seznamy.user.js
-// @downloadURL    https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Seznamy.user.js
+// @updateURL      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Seznamy-skryti.user.js
+// @downloadURL    https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Seznamy-skryti.user.js
 // @match        https://*/ords/*/f?p=110:*
 // @match        https://www.riscon.cz/go/f?p=110*
 // @icon         https://www.riscon.cz//i/favicon.ico
