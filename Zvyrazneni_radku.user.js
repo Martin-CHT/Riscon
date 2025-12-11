@@ -1,29 +1,24 @@
 // ==UserScript==
 // @name           Riscon – univerzální zvýraznění řádků
 // @namespace      https://github.com/Martin-CHT/Riscon
-// @version        2.1.1
+// @version        2.1.2
 // @description    Klikací zvýraznění řádků v interaktivních reportech  v celém RISCONu.
 // @author         Martin
 // @copyright      2025, Martin
 // @license        Proprietary - internal use only
 // @homepageURL    https://github.com/Martin-CHT/Riscon
 // @website        https://www.riscon.cz/
-// @source         https://raw.githubusercontent.com/Martin-CHT/Riscon/master/IRR-RowsHighlight.user.js
 // @supportURL     https://github.com/Martin-CHT/Riscon/issues
+// @source         https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Zvyrazneni_radku.user.js
+// @updateURL      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Zvyrazneni_radku.user.js
+// @downloadURL    https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Zvyrazneni_radku.user.js
 // @icon           https://www.oracle.com/a/ocom/img/rest.svg
 // @icon64         https://www.oracle.com/a/ocom/img/rest.svg
-// @updateURL      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/IRR-RowsHighlight.user.js
-// @downloadURL    https://raw.githubusercontent.com/Martin-CHT/Riscon/master/IRR-RowsHighlight.user.js
 // @match          https://*/ords/*/f?p=110:*
 // @match          https://www.riscon.cz/go/f?p=110*
 // @noframes
 // @run-at         document-end
 // @tag            riscon
-// @tag            irr
-// @tag            bozp
-// @compatible     chrome Tampermonkey
-// @compatible     firefox Tampermonkey
-// @compatible     edge Tampermonkey
 // @grant          none
 // ==/UserScript==
 
