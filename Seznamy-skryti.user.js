@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon – skrytí položek seznamu
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      1.0.1
+// @version      1.0.5
 // @description  Skrytí vybraných položek v levém seznamu (Save ukládá, změny nejsou auto-permanentní).
 // @author       Martin
 // @copyright    2025, Martin
@@ -18,11 +18,9 @@
 // @match        https://www.riscon.cz/go/f?p=110*
 // @noframes
 // @run-at       document-end
-// @tag          Riscon
-// @tag          BOZP
+// @tag          riscon
 // @grant        none
 // ==/UserScript==
-
 
 (function () {
   'use strict';
@@ -34,7 +32,8 @@
     var stepEl = document.getElementById('pFlowStepId');
     var flow = flowEl ? flowEl.value : null;
     var step = stepEl ? stepEl.value : null;
-    return flow === '110' && step === '3124';
+    // cílová stránka
+    return flow === '110' && step === '4408';
   }
 
   function mainAttempt(attempt) {
@@ -43,21 +42,30 @@
     if (!isTargetPage()) return;
 
     try {
-      // levý select
-      var leftSel = document.getElementById('P3124_AVAILABLE_WORKPLACES_LEFT');
+      // levý select shuttle (P4408_*_LEFT)
+      var leftSel =
+        document.querySelector('select[id^="P4408_"][id$="_LEFT"]') ||
+        document.querySelector('table.shuttle select[id$="_LEFT"]');
+
       if (!leftSel) {
-        if (attempt < 40) setTimeout(function () { mainAttempt(attempt + 1); }, 250);
+        if (attempt < 40) {
+          setTimeout(function () { mainAttempt(attempt + 1); }, 250);
+        }
         return;
       }
 
       // řádek shuttle tabulky – sem přidáme třetí „okno“
-      var shuttleRow = document.querySelector('#apex_layout_348946862145716333 table.shuttle tr');
+      var shuttleTable = leftSel.closest('table');
+      var shuttleRow = shuttleTable ? shuttleTable.querySelector('tr') : null;
+
       if (!shuttleRow) {
-        if (attempt < 40) setTimeout(function () { mainAttempt(attempt + 1); }, 250);
+        if (attempt < 40) {
+          setTimeout(function () { mainAttempt(attempt + 1); }, 250);
+        }
         return;
       }
 
-      // pracoviště z levého selectu
+      // položky z levého selectu
       var allOptions = Array.prototype.slice.call(leftSel.options).map(function (opt) {
         return {
           value: opt.value,
@@ -108,6 +116,14 @@
         pageData.activeProfile = 'default';
       }
 
+      // velikost UI (šířka/výška seznamu)
+      if (!pageData.uiSize || typeof pageData.uiSize !== 'object') {
+        pageData.uiSize = {
+          width: 350,
+          height: 400
+        };
+      }
+
       storeAll[pageKey] = pageData;
 
       // aktuálně aktivní profil + dočasný stav filtru
@@ -150,6 +166,10 @@
       var wrapper = document.createElement('div');
       wrapper.style.fontSize = '11px';
       wrapper.style.fontFamily = 'Tahoma,Arial,sans-serif';
+      wrapper.style.position = 'relative';
+      wrapper.style.display = 'inline-block';
+      wrapper.style.boxSizing = 'border-box';
+      wrapper.style.padding = '2px';
 
       // řádek profilů
       var profileRow = document.createElement('div');
@@ -211,9 +231,9 @@
       profileRow.appendChild(saveProfileBtn);
       profileRow.appendChild(deleteProfileBtn);
 
-      // label + select skrytých pracovišť
+      // label + select skrytých položek
       var label = document.createElement('label');
-      label.textContent = 'Pracoviště, která se NEMAJÍ nabízet:';
+      label.textContent = 'Položky, které se NEMAJÍ nabízet:';
       label.style.display = 'block';
       label.style.marginBottom = '4px';
       label.htmlFor = 'cht-hidden-workplaces';
@@ -221,8 +241,12 @@
       var sel = document.createElement('select');
       sel.id = 'cht-hidden-workplaces';
       sel.multiple = true;
-      sel.size = Math.min(30, allOptions.length);
-      sel.style.width = '350px';
+      // výška/šířka tažená z uložených hodnot
+      var initialWidth = pageData.uiSize.width || 350;
+      var initialHeight = pageData.uiSize.height || 400;
+      sel.style.width = initialWidth + 'px';
+      sel.style.height = initialHeight + 'px';
+      // žádný size, necháme to řídit přes CSS výšku
       sel.style.fontSize = '10px';
 
       allOptions.forEach(function (item) {
@@ -265,7 +289,7 @@
         // profil se přepíše teprve po "Uložit profil"
       });
 
-      // přepnutí profilu – načíst hodnoty z profilu, ale nepřepisovat ostatní
+      // přepnutí profilu – načíst hodnoty z profilu
       profileSelect.addEventListener('change', function () {
         var newProfile = profileSelect.value;
         if (!pageData.profiles[newProfile]) {
@@ -309,12 +333,120 @@
         applyHidden();
       });
 
-      // složit třetí okno
+      // přidáme obsah do wrapperu
       wrapper.appendChild(profileRow);
       wrapper.appendChild(label);
       wrapper.appendChild(sel);
       wrapper.appendChild(document.createElement('br'));
       wrapper.appendChild(resetBtn);
+
+      // resize rohy – tentokrát mění přímo <select>, ne jen obal
+      (function attachResizeHandles(container, targetEl) {
+        var minWidth = 260;
+        var minHeight = 120;
+        var isResizing = false;
+        var startX, startY, startWidth, startHeight, activePos;
+
+        function createHandle(pos) {
+          var h = document.createElement('div');
+          h.dataset.pos = pos;
+          h.style.position = 'absolute';
+          h.style.width = '10px';
+          h.style.height = '10px';
+          h.style.zIndex = '10';
+          h.style.background = 'transparent';
+          h.style.border = '1px solid #bbb';
+
+          if (pos === 'tl') {
+            h.style.left = '0';
+            h.style.top = '0';
+            h.style.cursor = 'nw-resize';
+          } else if (pos === 'tr') {
+            h.style.right = '0';
+            h.style.top = '0';
+            h.style.cursor = 'ne-resize';
+          } else if (pos === 'bl') {
+            h.style.left = '0';
+            h.style.bottom = '0';
+            h.style.cursor = 'sw-resize';
+          } else if (pos === 'br') {
+            h.style.right = '0';
+            h.style.bottom = '0';
+            h.style.cursor = 'se-resize';
+          }
+
+          h.addEventListener('mousedown', startResize);
+          container.appendChild(h);
+        }
+
+        function startResize(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          isResizing = true;
+          activePos = this.dataset.pos;
+          startX = e.clientX;
+          startY = e.clientY;
+          startWidth = targetEl.offsetWidth;
+          startHeight = targetEl.offsetHeight;
+
+          document.addEventListener('mousemove', onMouseMove);
+          document.addEventListener('mouseup', onMouseUp);
+        }
+
+        function onMouseMove(e) {
+          if (!isResizing) return;
+
+          var dx = e.clientX - startX;
+          var dy = e.clientY - startY;
+
+          var newWidth = startWidth;
+          var newHeight = startHeight;
+
+          switch (activePos) {
+            case 'br':
+              newWidth = startWidth + dx;
+              newHeight = startHeight + dy;
+              break;
+            case 'tr':
+              newWidth = startWidth + dx;
+              newHeight = startHeight - dy;
+              break;
+            case 'bl':
+              newWidth = startWidth - dx;
+              newHeight = startHeight + dy;
+              break;
+            case 'tl':
+              newWidth = startWidth - dx;
+              newHeight = startHeight - dy;
+              break;
+          }
+
+          if (newWidth < minWidth) newWidth = minWidth;
+          if (newHeight < minHeight) newHeight = minHeight;
+
+          // Tohle je ten podstatný rozdíl: měníme rozměry selectu
+          targetEl.style.width = newWidth + 'px';
+          targetEl.style.height = newHeight + 'px';
+        }
+
+        function onMouseUp() {
+          if (!isResizing) return;
+          isResizing = false;
+
+          document.removeEventListener('mousemove', onMouseMove);
+          document.removeEventListener('mouseup', onMouseUp);
+
+          // uložit aktuální velikost seznamu
+          pageData.uiSize.width = targetEl.offsetWidth;
+          pageData.uiSize.height = targetEl.offsetHeight;
+          saveStore();
+        }
+
+        createHandle('tl');
+        createHandle('tr');
+        createHandle('bl');
+        createHandle('br');
+      })(wrapper, sel);
 
       extraTd.appendChild(wrapper);
       shuttleRow.appendChild(extraTd);
@@ -323,10 +455,10 @@
       rebuildProfileSelect();
       syncSelFromCurrent();
       applyHidden();
-      saveStore(); // případně uloží migrovanou strukturu
+      saveStore(); // případně uloží migrovanou strukturu / velikost
 
     } catch (err) {
-      console.error('Riscon – skrytí pracovišť (profily): chyba skriptu:', err);
+      console.error('Riscon – skrytí položek seznamu: chyba skriptu:', err);
     }
   }
 
