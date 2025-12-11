@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name           Riscon – univerzální zvýraznění řádků
+// @name           Riscon: Univerzální zvýraznění řádků
 // @namespace      https://github.com/Martin-CHT/Riscon
-// @version        2.1.2
+// @version        2.1.3
 // @description    Klikací zvýraznění řádků v interaktivních reportech  v celém RISCONu.
 // @author         Martin
 // @copyright      2025, Martin
