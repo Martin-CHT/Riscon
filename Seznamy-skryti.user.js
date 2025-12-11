@@ -1,19 +1,19 @@
 // ==UserScript==
-// @name         Riscon – skrytí položek seznamu
+// @name         Riscon: Skrytí položek seznamu
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      1.0.5
+// @version      1.0.6
 // @description  Skrytí vybraných položek v levém seznamu (Save ukládá, změny nejsou auto-permanentní).
 // @author       Martin
 // @copyright    2025, Martin
 // @license      Proprietary - internal use only
 // @homepageURL  https://github.com/Martin-CHT/Riscon
-// @website      https://www.riscon.cz/
+// @supportURL   https://github.com/Martin-CHT/Riscon/issues
 // @source       https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Seznamy-skryti.user.js
 // @updateURL    https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Seznamy-skryti.user.js
 // @downloadURL  https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Seznamy-skryti.user.js
-// @supportURL   https://github.com/Martin-CHT/Riscon/issues
 // @icon         https://www.oracle.com/a/ocom/img/rest.svg
 // @icon64       https://www.oracle.com/a/ocom/img/rest.svg
+// @website      https://www.riscon.cz/
 // @match        https://*/ords/*/f?p=110:*
 // @match        https://www.riscon.cz/go/f?p=110*
 // @noframes
