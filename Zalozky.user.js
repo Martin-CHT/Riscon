@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name           Riscon: Zvýraznění záložek
 // @namespace      https://github.com/Martin-CHT/Riscon
-// @version        7.5.0
+// @version        7.5.1
 // @description    Výběr a zvýraznění záložek v RISCON, ukládání oblíbených záložek podle stránky.
 // @author         Martin
-// @copyright      2025, Martin
+// @copyright      2025-2026, Martin
 // @license        Proprietary - internal use only
 // @homepageURL    https://github.com/Martin-CHT/Riscon
 // @website        https://www.riscon.cz/
