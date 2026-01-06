@@ -1,19 +1,19 @@
 // ==UserScript==
 // @name           Riscon: JSON
 // @namespace      https://github.com/Martin-CHT/Riscon
-// @version        7.5.1
+// @version        7.6.0
 // @description    Vyplní formulář z JSONu a vytěží tisk zpět do JSONu.
 // @author         Martin
 // @copyright      2025-2026, Martin
 // @license        Proprietary - internal use only
 // @homepageURL    https://github.com/Martin-CHT/Riscon
 // @website        https://www.riscon.cz/
-// @source         https://raw.githubusercontent.com/Martin-CHT/Riscon/master/JSON.user.js
+// @source         https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Riscon-komplet.user.js
 // @supportURL     https://github.com/Martin-CHT/Riscon/issues
 // @icon           https://www.oracle.com/a/ocom/img/rest.svg
 // @icon64         https://www.oracle.com/a/ocom/img/rest.svg
-// @updateURL      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/JSON.user.js
-// @downloadURL    https://raw.githubusercontent.com/Martin-CHT/Riscon/master/JSON.user.js
+// @updateURL      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Riscon-komplet.user.js
+// @downloadURL    https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Riscon-komplet.user.js
 // @match          https://*/ords/*/f?p=110:*
 // @match          https://www.riscon.cz/go/f?p=110*
 // @noframes
