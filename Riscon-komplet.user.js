@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Sdružené skripty
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      8.0.0
+// @version      8.0.1
 // @description  Kompletní balík nástrojů pro Riscon.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -521,9 +521,9 @@
 
                 const EFF_LEVELS = [
                     { pct: 25, label: 'informování / značení', desc: 'Informování, značení, obecná pravidla.' },
-                    { pct: 50, label: 'organizace / postupy', desc: 'Organizace, postupy, školení, OOPP.' },
-                    { pct: 75, label: 'technická opatření', desc: 'Bariéry, varování, kontroly.' },
-                    { pct: 95, label: 'bezpečnostní systémy', desc: 'Automatizace, zamezení vstupu.' }
+                    { pct: 50, label: 'organizace / postupy', desc: 'Organizační opatření předcházející rizikovému chování. Organizace, postupy, školení, OOPP.' },
+                    { pct: 75, label: 'technická opatření', desc: 'Technická a organizační opatření snižující riziko kontaktu. Bariéry, varování, kontroly.' },
+                    { pct: 95, label: 'bezpečnostní systémy', desc: 'Technická a organizační opatření předcházející vystavení se nebezpečí. Automatizace, zamezení vstupu.' }
                 ];
 
                 let html = `
