@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Sdružené skripty
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      8.0.1
+// @version      8.0.2
 // @description  Kompletní balík nástrojů pro Riscon.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -129,7 +129,7 @@
                     <span style="font-size:12px; color:#333;">${label}</span>
                     <span id="val-${id.replace('.','-')}" style="font-size:11px; color:#666;">${Math.round(value*100)}%</span>
                 </div>
-                <input type="range" data-id="${id}" min="0.1" max="1.0" step="0.1" value="${value}" style="width:100%;">
+                <input type="range" data-id="${id}" min="0" max="1.0" step="0.1" value="${value}" style="width:100%;">
             </div>
         `;
 
@@ -336,7 +336,7 @@
                         btnWrap.id = 'apex-json-btnwrap';
 
                         Object.assign(btnWrap.style, {
-                            bottom: '11px', right: '9px',
+                            bottom: '11px', right: '7px',
                             opacity: Config.scriptBtnOpacity, transition: 'opacity 0.5s'
                         });
 
@@ -350,8 +350,8 @@
 
                         Object.assign(btn.style, {
                             background: '#333', color: '#fff',
-                            padding: '4px 10px', borderRadius: '2px',
-                            border: 'none', cursor: 'pointer',
+                            padding: '5px 10px', borderRadius: '2px',
+                            border: '0px solid #aaaaaa', cursor: 'pointer',
                             fontSize: '12px', fontFamily: 'Arial, sans-serif',
                             display: 'block', margin: 0
                         });
@@ -521,9 +521,9 @@
 
                 const EFF_LEVELS = [
                     { pct: 25, label: 'informování / značení', desc: 'Informování, značení, obecná pravidla.' },
-                    { pct: 50, label: 'organizace / postupy', desc: 'Organizační opatření předcházející rizikovému chování. Organizace, postupy, školení, OOPP.' },
-                    { pct: 75, label: 'technická opatření', desc: 'Technická a organizační opatření snižující riziko kontaktu. Bariéry, varování, kontroly.' },
-                    { pct: 95, label: 'bezpečnostní systémy', desc: 'Technická a organizační opatření předcházející vystavení se nebezpečí. Automatizace, zamezení vstupu.' }
+                    { pct: 50, label: 'organizace / postupy', desc: 'Organizace, postupy, školení, OOPP.' },
+                    { pct: 75, label: 'technická opatření', desc: 'Bariéry, varování, kontroly.' },
+                    { pct: 95, label: 'bezpečnostní systémy', desc: 'Automatizace, zamezení vstupu.' }
                 ];
 
                 let html = `
