@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name           Riscon: Rizika (barvy, popisky GKI, legenda účinnosti opatření)
 // @namespace      https://github.com/Martin-CHT/Riscon
-// @version        7.5.1
+// @version        7.5.2
 // @description    Sjednocený skript pro RISCON: úprava popisků GKI, barevné zvýraznění rizik podle hodnot a legenda účinnosti opatření.
 // @author         Martin
 // @copyright      2025-2026, Martin
