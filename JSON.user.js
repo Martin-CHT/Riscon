@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name           Riscon: JSON
 // @namespace      https://github.com/Martin-CHT/Riscon
-// @version        7.6.0
-// @description    Vyplní formulář z JSONu a vytěží tisk zpět do JSONu.
+// @version        7.7.0
+// @description    Změna verze - převod na sdružené skripty
 // @author         Martin
 // @copyright      2025-2026, Martin
 // @license        Proprietary - internal use only
