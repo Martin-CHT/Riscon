@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Riscon: Sdružené skripty
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      8.0.3
-// @description  Kompletní balík nástrojů pro Riscon.
+// @version      8.0.4
+// @description  Sdružený balík nástrojů pro Riscon.
 // @author       Martin
 // @copyright    2025-2026, Martin
 // @license      Proprietary - internal use only
