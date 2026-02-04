@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Sdružené skripty
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      8.6.0
+// @version      8.7.0
 // @description  Sdružený balík nástrojů pro Riscon. (Update: Gravity z hlavičky tabulky)
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -10,8 +10,8 @@
 // @website      https://www.riscon.cz/
 // @source       https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Riscon-komplet.user.js
 // @supportURL   https://github.com/Martin-CHT/Riscon/issues
-// @icon         https://upload.wikimedia.org/wikipedia/commons/5/50/Logo_OVB_Holding_AG.svg
-// @icon64       https://upload.wikimedia.org/wikipedia/commons/5/50/Logo_OVB_Holding_AG.svg
+// @icon         https://www.oracle.com/a/ocom/img/rest.svg
+// @icon64       https://www.oracle.com/a/ocom/img/rest.svg
 // @updateURL    https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Riscon-komplet.user.js
 // @downloadURL  https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Riscon-komplet.user.js
 // @match        https://*/ords/*/f?p=110:*
@@ -102,7 +102,7 @@
                     this.timer = setTimeout(() => this.beat(), 300);
                 }
             });
-
+            
             // Sledujeme celé body
             this.observer.observe(document.body, { childList: true, subtree: true });
         },
