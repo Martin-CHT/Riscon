@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Riscon: Sdružené skripty
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      8.1.0
-// @description  Sdružený balík nástrojů pro Riscon. (Fix: Pulse Engine - trvalé barvy)
+// @version      8.6.0
+// @description  Sdružený balík nástrojů pro Riscon. (Update: Gravity z hlavičky tabulky)
 // @author       Martin
 // @copyright    2025-2026, Martin
 // @license      Proprietary - internal use only
@@ -10,8 +10,8 @@
 // @website      https://www.riscon.cz/
 // @source       https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Riscon-komplet.user.js
 // @supportURL   https://github.com/Martin-CHT/Riscon/issues
-// @icon         https://www.oracle.com/a/ocom/img/rest.svg
-// @icon64       https://www.oracle.com/a/ocom/img/rest.svg
+// @icon         https://upload.wikimedia.org/wikipedia/commons/5/50/Logo_OVB_Holding_AG.svg
+// @icon64       https://upload.wikimedia.org/wikipedia/commons/5/50/Logo_OVB_Holding_AG.svg
 // @updateURL    https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Riscon-komplet.user.js
 // @downloadURL  https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Riscon-komplet.user.js
 // @match        https://*/ords/*/f?p=110:*
@@ -102,7 +102,7 @@
                     this.timer = setTimeout(() => this.beat(), 300);
                 }
             });
-            
+
             // Sledujeme celé body
             this.observer.observe(document.body, { childList: true, subtree: true });
         },
@@ -181,7 +181,7 @@
                 ch.addEventListener('change', (e) => {
                     const path = e.target.dataset.id.split('.');
                     if (path.length === 2) Config[path[0]][path[1]] = e.target.checked;
-                    saveConfig(); 
+                    saveConfig();
                     Modules.applyAll(); // Aplikuje změny
                     Pulse.beat();       // Vynutí překreslení
                 });
@@ -213,13 +213,13 @@
 
     const Modules = {
         safeRun: function(moduleName, fn) { try { fn(); } catch (e) { console.error(`Riscon Suite: Chyba v modulu ${moduleName}:`, e); } },
-        
+
         // applyAll volá inicializaci (přidání listenerů atd.)
         applyAll: function() {
             this.safeRun('JSON', () => this.Json.toggle(Config.json.enabled));
             this.safeRun('Risks', () => this.Risks.update(Config.risks)); // Iniciační volání
             this.safeRun('Lists', () => this.Lists.toggle(Config.hiddenItems.enabled));
-            this.safeRun('Rows', () => this.Rows.init()); 
+            this.safeRun('Rows', () => this.Rows.init());
             this.safeRun('Tabs', () => this.Tabs.toggle(Config.tabHighlight.enabled));
         },
 
@@ -284,7 +284,7 @@
                 async function fillForm(json) {
                     let data;
                     try { data = JSON.parse(String(json).trim().replace(/^([^{[]+)/,'').replace(/([^}\]]+)$/,'')); } catch {
-                         try { data = JSON.parse('{' + json + '}'); } catch(e) { throw new Error('Chybný formát JSON'); }
+                          try { data = JSON.parse('{' + json + '}'); } catch(e) { throw new Error('Chybný formát JSON'); }
                     }
                     for (const [k, v] of Object.entries(data)) {
                         if (v == null) continue;
@@ -303,6 +303,7 @@
                     }
                 }
 
+                // *** UPRAVENÁ FUNKCE PRO VYTĚŽOVÁNÍ BLOKŮ (TABULEK) ***
                 const extractBlocks = () => {
                     const tables = [...document.querySelectorAll('table.si_table')].filter(t => /#\s*\d+,\s*ID:/i.test(t.textContent));
                     return tables.map(t => {
@@ -314,9 +315,65 @@
                              } return '';
                         };
                         const id = t.querySelector('th.si_th')?.textContent.match(/ID:\s*(\d+)/)?.[1] || '';
-                        return { P6206_RANKING: id, P6206_DESCRIPTION: pick('Popis'), P6206_GRAVITY: '', P6206_EXACT_PLACE: stripColon(pick('Místo',false)), P6206_LEGAL_REFERENCES: stripColon(pick('Odkazy',false)), P6206_IMMEDIATE_ACTION: pick('Okamžité') };
+
+                        // ZÍSKÁNÍ GRAVITY Z HLAVIČKY (# 2, ID: 2 - Neshoda)
+                        let gravityVal = '';
+                        const header = t.querySelector('th.si_th')?.innerText || '';
+                        const match = header.match(/-\s*(.+)$/); // Najde text za pomlčkou
+                        if(match) {
+                            const txt = match[1].trim().toLowerCase();
+                            if(txt.includes('silná')) gravityVal = '1';
+                            else if(txt.includes('komentář')) gravityVal = '2';
+                            else if(txt.includes('slabá')) gravityVal = '3';
+                            else if(txt.includes('závažná')) gravityVal = '5'; // Závažná neshoda
+                            else if(txt.includes('neshoda')) gravityVal = '4'; // Obyčejná neshoda
+                        }
+
+                        // Zde přidáváme nové klíče
+                        return {
+                            P6206_RANKING: id,
+                            P6206_DESCRIPTION: pick('Popis'),
+                            P6206_EXAMINED_PERSON: pick('Prověřovaná') || pick('Osoba'),
+                            P6206_FOCUSED_ON: pick('Zaměření'),
+                            P6206_GRAVITY: gravityVal || pick('Závažnost'), // Použijeme z hlavičky, jinak zkusíme tělo
+                            P6206_EXACT_PLACE: stripColon(pick('Místo',false)),
+                            P6206_LEGAL_REFERENCES: stripColon(pick('Odkazy',false)),
+                            P6206_POSSIBLE_CAUSES: pick('Příčiny') || pick('Možné příčiny'),
+                            P6206_IMMEDIATE_ACTION: pick('Okamžité')
+                        };
                     });
                 };
+
+                // Vytěžování formulářů - ZÁKLADNÍ VERZE (Override děláme v on-clicku)
+                const extractForm = () => {
+                    const data = {};
+                    const inputs = document.querySelectorAll('input, select, textarea');
+                    inputs.forEach(el => {
+                        const id = el.id;
+                        if (!id || !/^P\d+_/.test(id)) return;
+
+                        const type = (el.type || '').toLowerCase();
+                        if (type === 'hidden') return;
+                        if (type === 'button' || type === 'submit') return;
+
+                        if (type === 'checkbox' || type === 'radio') {
+                            if (el.checked) {
+                                data[id] = el.value;
+                            }
+                        } else {
+                            if (window.CKEDITOR && CKEDITOR.instances && CKEDITOR.instances[id]) {
+                                const editorData = CKEDITOR.instances[id].getData();
+                                if (editorData) data[id] = editorData;
+                            } else {
+                                if (el.value !== '' && el.value != null) {
+                                    data[id] = el.value;
+                                }
+                            }
+                        }
+                    });
+                    return data;
+                };
+
                 const format = (arr) => arr.map(o => JSON.stringify(o, null, 2)).join('\n===========================\n');
                 this.loadConfig = () => { try { return JSON.parse(localStorage.getItem(SIZE_KEY)); } catch { return null; } };
                 this.savePanelConfig = (panel) => { const s = window.getComputedStyle(panel); localStorage.setItem(SIZE_KEY, JSON.stringify({ w: panel.offsetWidth, h: panel.offsetHeight, right: parseInt(s.right), bottom: parseInt(s.bottom) })); };
@@ -359,7 +416,44 @@
                     $('#apex-json-toggle').onclick = (e) => { e.preventDefault(); panel.style.display = (panel.style.display==='none'?'flex':'none'); };
                     $('#apex-json-close', panel).onclick = () => panel.style.display = 'none';
                     $('#apex-json-clear', panel).onclick = () => $('#apex-json-text', panel).value = '';
-                    $('#apex-json-extract', panel).onclick = () => { const d = extractBlocks(); $('#apex-json-text', panel).value = d.length ? format(d) : '// Nic'; };
+
+                    // --- EVENT LISTENER S LOGIKOU FORCE DATE ---
+                    $('#apex-json-extract', panel).onclick = (e) => {
+                        const btnEl = e.target;
+                        const origText = btnEl.textContent;
+
+                        const d = extractBlocks();
+                        if (d.length > 0) {
+                             $('#apex-json-text', panel).value = format(d);
+                        } else {
+                            const formData = extractForm();
+
+                            if (Object.keys(formData).length > 0) {
+                                // 1. Připravíme dnešní datum
+                                const now = new Date();
+                                const today = String(now.getDate()).padStart(2, '0') + '.' + String(now.getMonth() + 1).padStart(2, '0') + '.' + now.getFullYear();
+
+                                // 2. "PŘEPIS NA SÍLU" - Přímá manipulace s objektem
+                                // Pokud klíč existuje (nebo pokud input existuje na stránce), přepíšeme hodnotu v datech
+                                if (formData.hasOwnProperty('P6201_I_DATE_START') || document.getElementById('P6201_I_DATE_START')) {
+                                    formData['P6201_I_DATE_START'] = today;
+                                }
+                                if (formData.hasOwnProperty('P6201_I_DATE_END') || document.getElementById('P6201_I_DATE_END')) {
+                                    formData['P6201_I_DATE_END'] = today;
+                                }
+
+                                $('#apex-json-text', panel).value = JSON.stringify(formData, null, 2);
+
+                                // 3. Vizuální kontrola pro uživatele
+                                btnEl.textContent = "Vytěženo (Force Date)";
+                                setTimeout(() => btnEl.textContent = origText, 2000);
+
+                            } else {
+                                $('#apex-json-text', panel).value = '// Nic k vytěžení nenalezeno (žádná tabulka rizik ani formulářová data).';
+                            }
+                        }
+                    };
+
                     $('#apex-json-fill', panel).onclick = async () => { try{ await fillForm($('#apex-json-text', panel).value); }catch(e){alert(e.message);} };
                 };
                 this.addResizeHandles = (panel) => {
@@ -480,7 +574,7 @@
                 const STORAGE_KEY = 'cht_apex_hidden_workplaces_profiles';
                 const pFlow = document.getElementById('pFlowId')?.value || '0'; const pStep = document.getElementById('pFlowStepId')?.value || '0';
                 const pageKey = `${pFlow}:${pStep}`;
-                
+
                 // Load logic
                 let storeAll = {}; try { storeAll = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}'); } catch(e){}
                 let pageData = storeAll[pageKey] || { activeProfile: 'default', profiles: {'default': []}, uiSize: {width: 350, height: 400} };
@@ -515,7 +609,7 @@
                 dom.save.onclick = (e) => { e.preventDefault(); const n = dom.name.value.trim() || pageData.activeProfile || 'default'; pageData.profiles[n] = currentHidden.slice(); pageData.activeProfile = n; dom.name.value = ''; rebuildProfs(); save(); };
                 dom.del.onclick = (e) => { e.preventDefault(); if(pageData.activeProfile === 'default') return; delete pageData.profiles[pageData.activeProfile]; pageData.activeProfile = 'default'; currentHidden = pageData.profiles.default.slice(); rebuildProfs(); syncSel(); apply(); save(); };
                 resetBtn.onclick = (e) => { e.preventDefault(); currentHidden = []; syncSel(); apply(); };
-                
+
                 rebuildProfs(); syncSel(); apply();
             }
         },
@@ -525,7 +619,7 @@
             initialized: false,
             init: function(){
                 if (!Config.rowHighlight.enabled) return;
-                
+
                 // 1. CLICK LISTENER - DELEGATED (navěsíme jen jednou)
                 if (!this.initialized) {
                     this.initialized = true;
@@ -564,7 +658,7 @@
 
                         store[regionKey] = selected;
                         localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
-                        
+
                         this.addResetButton(regionEl, regionKey);
                     });
                 }
@@ -589,7 +683,7 @@
 
                     table.querySelectorAll('tr').forEach((tr, rIdx) => {
                         if (!tr.querySelector('td')) return;
-                        
+
                         // Zkontrolujeme, jestli už je obarvený (optimalizace DOM)
                         // Ale musíme ověřit, jestli je STÁLE v selected
                         const link = tr.querySelector('a[href*="_ID:"]');
@@ -637,11 +731,11 @@
                 if (c) c.style.display = enabled ? '' : 'none';
                 if (enabled && !c) this.init();
             },
-            init: function() { 
+            init: function() {
                 if(!Config.tabHighlight.enabled) return;
                 // Pokud už existuje, končíme (Pulse volá opakovaně)
                 if(document.getElementById(this.containerId)) return;
-                
+
                 const tabsUl = document.querySelector('.apex-rds'); const sidebar = document.querySelector('td.tbl-sidebar');
                 if (!tabsUl || !sidebar) return;
 
@@ -651,9 +745,9 @@
 
                 const lis = Array.from(tabsUl.querySelectorAll('li.apex-rds-item'));
                 const map = lis.map((li,i)=>({li, key:li.id||li.querySelector('a')?.href||'idx_'+i, label:li.textContent.replace('★','').trim()}));
-                
+
                 // Aplikace barev (toto se musí dělat opakovaně v Pulse, kdyby se záložky překreslily)
-                // Ale v initu to stačí navázat na eventy. 
+                // Ale v initu to stačí navázat na eventy.
                 // Vzhledem k tomu, že Pulse běží často, uděláme lehkou funkci pro obarvení:
                 this.colorTabs(map, selected);
 
@@ -671,21 +765,21 @@
 
                 const sel = container.querySelector('select');
                 map.forEach(m => sel.add(new Option(m.label,m.key,false,selected.includes(m.key))));
-                
-                sel.onchange = () => { 
-                    selected = Array.from(sel.selectedOptions).map(o=>o.value); 
-                    store[pageKey]=selected; 
-                    localStorage.setItem(STORAGE_KEY,JSON.stringify(store)); 
-                    this.colorTabs(map, selected); 
+
+                sel.onchange = () => {
+                    selected = Array.from(sel.selectedOptions).map(o=>o.value);
+                    store[pageKey]=selected;
+                    localStorage.setItem(STORAGE_KEY,JSON.stringify(store));
+                    this.colorTabs(map, selected);
                 };
 
                 sidebar.insertBefore(container, sidebar.firstChild);
             },
             colorTabs: function(map, selected) {
                 map.forEach(m => {
-                    const is = selected.includes(m.key); 
+                    const is = selected.includes(m.key);
                     m.li.classList.toggle('cht-rds-highlight',is);
-                    const s = m.li.querySelector('span'); 
+                    const s = m.li.querySelector('span');
                     if(s) {
                         const txt = s.textContent.replace('★ ','');
                         s.textContent = (is ? '★ ' : '') + txt;
