@@ -16,6 +16,13 @@
     "128": "logo.png"
   },
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background.js",
+    "scripts": ["background.js"]
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "riscon-sync@riscon.cz",
+      "strict_min_version": "121.0"
+    }
   }
 }
