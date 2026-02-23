@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Riscon Session Sync",
+  "version": "1.0",
+  "description": "Automaticky aktualizuje Session ID ve všech záložkách po novém přihlášení do Riscon.",
+  "permissions": [
+    "tabs",
+    "webNavigation"
+  ],
+  "host_permissions": [
+    "*://www.riscon.cz/*"
+  ],
+  "icons": {
+    "16": "logo.png",
+    "48": "logo.png",
+    "128": "logo.png"
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}
