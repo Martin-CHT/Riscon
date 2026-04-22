@@ -1,8 +1,4 @@
 # Skripty
-Tampermonkey
-<ul>
-<li><a href="https://raw.githubusercontent.com/Martin-CHT/Riscon/master/JSON.user.js">Riscon: JSON</a></li>
-<li><a href="https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Rizika.user.js">Riscon: Rizika (barvy)</a></li>
-<li><a href="https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Seznamy-skryti.user.js">Riscon: Skrytí položek seznamu</a></li>
-<li><a href="https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Zalozky.user.js">Riscon: Záložky</a></li>
-</ul>
+Pro fungování tohot sktriptu je nutné mít nainstalované rozšíření <a href="https://chromewebstore.google.com/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo">Tampermonkey</a>
+<br>
+Kliknutím na <a href="https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Riscon-komplet.user.js">tento odkaz</a>dojde k instalaci samotného skriptu.
