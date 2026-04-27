@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Rozbalit tabulky
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      9.0.0
+// @version      9.0.1
 // @description  Přidává možnost rozbalit všechny stránky APEX reportu na jednu stranu. Součást Riscon Suite – lze nainstalovat samostatně nebo načíst přes @require.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -26,61 +26,80 @@
 
     RS.Modules.Unroll = {
         initialized: false,
+        currentlyUnrolling: new Set(),
+
         init: function () {
             if (this.initialized) return;
             this.initialized = true;
 
-            this.addUnrollButtons();
+            this.autoUnroll();
 
-            // APEX po každém AJAX refresh reportu překreslí DOM (včetně stránkování).
-            // Musíme tedy tlačítko přidávat znovu po každém refresh.
+            // Sledujeme refresh reportu (když se tabulka překreslí, znovu zkusíme rozbalit, 
+            // pokud by se z nějakého důvodu vrátilo stránkování)
             if (typeof unsafeWindow !== 'undefined' && unsafeWindow.apex && unsafeWindow.apex.jQuery) {
-                unsafeWindow.apex.jQuery(document).on('apexafterrefresh', () => this.addUnrollButtons());
+                unsafeWindow.apex.jQuery(document).on('apexafterrefresh', () => this.autoUnroll());
             } else if (window.apex && window.apex.jQuery) {
-                window.apex.jQuery(document).on('apexafterrefresh', () => this.addUnrollButtons());
+                window.apex.jQuery(document).on('apexafterrefresh', () => this.autoUnroll());
             } else {
-                // Fallback, pokud není jQuery událost k dispozici (např. sandbox problémy)
-                const mo = new MutationObserver(() => this.addUnrollButtons());
+                const mo = new MutationObserver(() => this.autoUnroll());
                 mo.observe(document.body, { childList: true, subtree: true });
             }
         },
 
-        addUnrollButtons: function() {
-            // Najde všechny "Další" nebo "Next" odkazy u reportů
-            document.querySelectorAll('a.pagination[href*="apex.widget.report.paginate"]').forEach(link => {
-                // Přidáváme tlačítko jen pokud tam ještě není
-                if (link.parentNode.querySelector('.cht-unroll-btn')) return;
-                
-                // Můžeme se omezit pouze na prvky obsahující slovo "Další" nebo šipku, aby se tlačítko necpalo ke každému číslu stránky
-                if (!link.textContent.includes('Další') && !link.innerHTML.includes('paginate_next')) return;
-
-                // Odchytíme ID reportu (první parametr paginate funkce)
-                const match = link.href.match(/paginate\('([^']+)'/);
+        autoUnroll: function() {
+            const toUnroll = new Set();
+            
+            // Najdeme všechny odkazy na stránkování
+            document.querySelectorAll('a[href*="apex.widget.report.paginate"]').forEach(link => {
+                const match = link.href.match(/paginate\('([^']+)',\s*\{(.*?)\}/);
                 if (match) {
                     const reportId = match[1];
-
-                    const btn = document.createElement('a');
-                    btn.href = '#';
-                    btn.className = 'pagination cht-unroll-btn';
-                    btn.style.marginLeft = '12px';
-                    btn.style.fontWeight = 'bold';
-                    btn.style.color = '#e45c00';
-                    btn.style.textDecoration = 'none';
-                    btn.innerHTML = 'Rozbalit vše ▼';
-
-                    // Voláme interní APEX funkci, změníme 'max' počet řádků na 10000.
-                    // Požadavek na max > než povolený maximum v DB se obvykle ořízne na DB limit (což je žádoucí),
-                    // ale tabulka se "rozbalí" na maximální počet položek.
-                    btn.setAttribute('onclick', `apex.widget.report.paginate('${reportId}', {min: 1, max: 10000}); return false;`);
-
-                    // Vložíme tlačítko hned za odkaz
-                    link.parentNode.insertBefore(btn, link.nextSibling);
+                    const paramsStr = match[2];
+                    const maxMatch = paramsStr.match(/max:\s*(\d+)/);
+                    
+                    if (maxMatch) {
+                        const currentMax = parseInt(maxMatch[1], 10);
+                        // Pokud je nastaveno méně než 10 000 řádků, chceme report rozbalit
+                        if (currentMax < 10000) {
+                            toUnroll.add(reportId);
+                        }
+                    }
                 }
+            });
+
+            toUnroll.forEach(reportId => {
+                // Abychom nespustili rozbalení 5x za sebou (pokud je na stránce 5 odkazů na stránkování)
+                if (this.currentlyUnrolling.has(reportId)) return;
+                
+                this.currentlyUnrolling.add(reportId);
+                console.log(`Riscon Unroll: Automaticky rozbaluji report ${reportId}`);
+                
+                try {
+                    // Volání APEX API přímo v kontextu stránky
+                    if (typeof unsafeWindow !== 'undefined' && unsafeWindow.apex && unsafeWindow.apex.widget && unsafeWindow.apex.widget.report) {
+                        unsafeWindow.apex.widget.report.paginate(reportId, {min: 1, max: 10000});
+                    } else if (window.apex && window.apex.widget && window.apex.widget.report) {
+                        window.apex.widget.report.paginate(reportId, {min: 1, max: 10000});
+                    } else {
+                        // Fallback pomocí injectnutí script tagu
+                        const code = `if (apex && apex.widget && apex.widget.report) apex.widget.report.paginate('${reportId}', {min: 1, max: 10000});`;
+                        const script = document.createElement('script');
+                        script.textContent = code;
+                        document.body.appendChild(script);
+                        script.remove();
+                    }
+                } catch (err) {
+                    console.error("Riscon Unroll Chyba:", err);
+                }
+                
+                // Uvolníme zámek pro další případný budoucí refresh
+                setTimeout(() => {
+                    this.currentlyUnrolling.delete(reportId);
+                }, 2000);
             });
         }
     };
 
-    // Standalone spuštění
     if (!RS.Config) {
         if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => RS.Modules.Unroll.init());
         else RS.Modules.Unroll.init();
