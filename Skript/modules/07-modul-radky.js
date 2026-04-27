@@ -7,7 +7,8 @@
 // @copyright    2025-2026, Martin
 // @license      Proprietary - internal use only
 // @homepageURL  https://github.com/Martin-CHT/Riscon
-// @source       https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/07-modul-radky.js
+// @updateURL    https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/07-modul-radky.js
+// @downloadURL  https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/07-modul-radky.js
 // @match        https://*/ords/*/f?p=110:*
 // @match        https://www.riscon.cz/go/f?p=110*
 // @match        https://www.riscon.cz/*

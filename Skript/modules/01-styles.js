@@ -7,7 +7,8 @@
 // @copyright    2025-2026, Martin
 // @license      Proprietary - internal use only
 // @homepageURL  https://github.com/Martin-CHT/Riscon
-// @source       https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/01-styles.js
+// @updateURL    https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/01-styles.js
+// @downloadURL  https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/01-styles.js
 // @match        https://*/ords/*/f?p=110:*
 // @match        https://www.riscon.cz/go/f?p=110*
 // @match        https://www.riscon.cz/*
