@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Sdružené skripty
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      9.0.2
+// @version      9.0.3
 // @description  Sdružený balík nástrojů pro Riscon. Modulární verze – každý modul je samostatný soubor načítaný přes @require.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -34,6 +34,7 @@
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/08-modul-zalozky.js?v=9.0.0
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/09-modul-sidebar.js?v=9.0.0
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/10-modul-checklist.js?v=9.0.0
+// @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/11-modul-rozbalit.js?v=9.0.0
 // ==/UserScript==
 
 (function () {
@@ -66,6 +67,7 @@
         RS.Modules.safeRun('Tabs', () => M.Tabs && M.Tabs.toggle(C.tabHighlight.enabled));
         RS.Modules.safeRun('Sidebar', () => M.Sidebar && M.Sidebar.toggle(C.sidebarToggle.enabled));
         RS.Modules.safeRun('Checklist', () => M.Checklist && M.Checklist.toggle(C.docChecklist.enabled));
+        RS.Modules.safeRun('Unroll', () => M.Unroll && M.Unroll.init());
     };
 
     // --- Spuštění ---
