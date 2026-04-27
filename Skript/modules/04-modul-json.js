@@ -92,7 +92,44 @@
             };
             const setCk = (id, val) => {
                 let v = normalizeTail(id, (id === 'P6206_EXACT_PLACE' || id === 'P6206_LEGAL_REFERENCES') ? stripColon(val) : val);
-                if (window.CKEDITOR?.instances?.[id]) CKEDITOR.instances[id].setData(v); else setVal(id, v);
+
+                // Vrstva 1: CKEditor API (setData) + zpětná synchronizace do hidden textarea
+                if (window.CKEDITOR?.instances?.[id]) {
+                    try {
+                        CKEDITOR.instances[id].setData(v);
+                        // Explicitně synchronizujeme i skrytý textarea, aby se změna
+                        // promítla při odeslání formuláře
+                        const ta = document.getElementById(id);
+                        if (ta) { ta.value = v; fire(ta); }
+                        return;
+                    } catch (e) {
+                        console.warn(`Riscon JSON: setData selhalo pro '${id}', zkouším iframe fallback.`, e);
+                    }
+                }
+
+                // Vrstva 2: Přímý zápis do iframe.contentDocument.body
+                // (funguje i když CKEDITOR API není dostupné nebo setData selže)
+                const ckeWrapper = document.getElementById('cke_' + id);
+                if (ckeWrapper) {
+                    const iframe = ckeWrapper.querySelector('iframe.cke_wysiwyg_frame');
+                    if (iframe) {
+                        try {
+                            const doc = iframe.contentDocument || iframe.contentWindow?.document;
+                            if (doc && doc.body) {
+                                doc.body.innerHTML = v;
+                                // Synchronizace zpět do hidden textarea
+                                const ta = document.getElementById(id);
+                                if (ta) { ta.value = v; fire(ta); }
+                                return;
+                            }
+                        } catch (e) {
+                            console.warn(`Riscon JSON: Přímý zápis do iframe selhal pro '${id}'.`, e);
+                        }
+                    }
+                }
+
+                // Vrstva 3: Poslední záchrana – nastavíme aspoň textarea
+                setVal(id, v);
             };
 
             async function fillForm(json) {
