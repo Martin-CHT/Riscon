@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: JSON nástroje
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      9.0.0
+// @version      9.0.1
 // @description  Panel pro vyplňování formulářů z JSON a vytěžování dat. Součást Riscon Suite – lze nainstalovat samostatně nebo načíst přes @require.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -93,22 +93,21 @@
             const setCk = (id, val) => {
                 let v = normalizeTail(id, (id === 'P6206_EXACT_PLACE' || id === 'P6206_LEGAL_REFERENCES') ? stripColon(val) : val);
 
-                // Vrstva 1: CKEditor API (setData) + zpětná synchronizace do hidden textarea
+                // Vrstva 1: CKEditor API – setData() aktualizuje iframe i textarea interně.
+                // POZOR: nevoláme fire(ta) po setData – CKEditor by mohl zachytit událost
+                // a přepsat obsah iframe zpět na starou hodnotu (zpětná synchronizace).
                 if (window.CKEDITOR?.instances?.[id]) {
                     try {
                         CKEDITOR.instances[id].setData(v);
-                        // Explicitně synchronizujeme i skrytý textarea, aby se změna
-                        // promítla při odeslání formuláře
-                        const ta = document.getElementById(id);
-                        if (ta) { ta.value = v; fire(ta); }
                         return;
                     } catch (e) {
                         console.warn(`Riscon JSON: setData selhalo pro '${id}', zkouším iframe fallback.`, e);
                     }
                 }
 
-                // Vrstva 2: Přímý zápis do iframe.contentDocument.body
-                // (funguje i když CKEDITOR API není dostupné nebo setData selže)
+                // Vrstva 2: Přímý zápis do iframe.contentDocument.body.
+                // Použije se když CKEDITOR API není dostupné v sandboxu Tampermonkey.
+                // Identifikujeme wrapper div podle konvence CKEditor: div#cke_{id}.
                 const ckeWrapper = document.getElementById('cke_' + id);
                 if (ckeWrapper) {
                     const iframe = ckeWrapper.querySelector('iframe.cke_wysiwyg_frame');
@@ -117,9 +116,10 @@
                             const doc = iframe.contentDocument || iframe.contentWindow?.document;
                             if (doc && doc.body) {
                                 doc.body.innerHTML = v;
-                                // Synchronizace zpět do hidden textarea
+                                // Tiše aktualizujeme hidden textarea pro odeslání formuláře.
+                                // Nevoláme fire() – zabráníme zpětné synchronizaci CKEditor.
                                 const ta = document.getElementById(id);
-                                if (ta) { ta.value = v; fire(ta); }
+                                if (ta) ta.value = v;
                                 return;
                             }
                         } catch (e) {
@@ -128,7 +128,7 @@
                     }
                 }
 
-                // Vrstva 3: Poslední záchrana – nastavíme aspoň textarea
+                // Vrstva 3: Poslední záchrana – nastavíme aspoň hidden textarea.
                 setVal(id, v);
             };
 
@@ -150,12 +150,18 @@
                             if (sv === ev || sv === 'true' || sv === '1' || sv === 'y' || sv === 'on') {
                                 ensureChecked(el);
                             } else if (el.checked) { el.click(); }
-                        } else if (/<[a-z][\s\S]*>/i.test(String(v)) && !type) {
-                            setCk(k, v);
-                        } else if (window.CKEDITOR?.instances?.[k]) {
-                            setCk(k, v);
                         } else {
-                            setVal(k, v);
+                            // Detekce CKEditor pole: primárně přes DOM (funguje i v Tampermonkey
+                            // sandboxu kde window.CKEDITOR není dostupný), sekundárně přes API.
+                            // CKEditor vytváří wrapper div s id="cke_{fieldId}" obsahující iframe.
+                            const ckeDiv = document.getElementById('cke_' + k);
+                            const isCkField = !!(window.CKEDITOR?.instances?.[k] ||
+                                (ckeDiv && ckeDiv.querySelector('iframe.cke_wysiwyg_frame')));
+                            if (isCkField) {
+                                setCk(k, v);
+                            } else {
+                                setVal(k, v);
+                            }
                         }
                     } else {
                         const radiosByName = document.querySelectorAll(`input[type="radio"][name="${k}"]`);
