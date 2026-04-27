@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: JSON nástroje
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      9.0.1
+// @version      9.0.2
 // @description  Panel pro vyplňování formulářů z JSON a vytěžování dat. Součást Riscon Suite – lze nainstalovat samostatně nebo načíst přes @require.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -18,6 +18,7 @@
 // @grant        GM_addStyle
 // @grant        GM_getValue
 // @grant        GM_setValue
+// @grant        unsafeWindow
 // ==/UserScript==
 
 (function () {
@@ -90,45 +91,60 @@
                 } else el.value = v ?? '';
                 fire(el);
             };
+            // Pomocná funkce pro získání CKEDITOR objektu:
+            // unsafeWindow je přímý odkaz na skutečný window stránky v Tampermonkey sandboxu.
+            // window.CKEDITOR může být nedostupné, pokud skript běží v izolovaném kontextu.
+            const getCKE = () => {
+                if (typeof unsafeWindow !== 'undefined' && unsafeWindow.CKEDITOR) return unsafeWindow.CKEDITOR;
+                if (window.CKEDITOR) return window.CKEDITOR;
+                return null;
+            };
+
             const setCk = (id, val) => {
                 let v = normalizeTail(id, (id === 'P6206_EXACT_PLACE' || id === 'P6206_LEGAL_REFERENCES') ? stripColon(val) : val);
+                console.log(`[Riscon JSON] setCk('${id}') spusťěno, délka dat: ${v.length}`);
 
-                // Vrstva 1: CKEditor API – setData() aktualizuje iframe i textarea interně.
-                // POZOR: nevoláme fire(ta) po setData – CKEditor by mohl zachytit událost
-                // a přepsat obsah iframe zpět na starou hodnotu (zpětná synchronizace).
-                if (window.CKEDITOR?.instances?.[id]) {
+                // Vrstva 1: CKEditor API přes unsafeWindow nebo window
+                const CKE = getCKE();
+                console.log(`[Riscon JSON] getCKE() =`, CKE ? 'nalezeno' : 'NULL');
+                if (CKE && CKE.instances && CKE.instances[id]) {
                     try {
-                        CKEDITOR.instances[id].setData(v);
+                        console.log(`[Riscon JSON] Volám setData() pro '${id}'`);
+                        CKE.instances[id].setData(v);
+                        console.log(`[Riscon JSON] setData() pro '${id}' proběhlo OK`);
                         return;
                     } catch (e) {
-                        console.warn(`Riscon JSON: setData selhalo pro '${id}', zkouším iframe fallback.`, e);
+                        console.warn(`[Riscon JSON] setData selhalo pro '${id}':`, e);
                     }
+                } else {
+                    console.log(`[Riscon JSON] CKE instance pro '${id}' nenalezena, zkouším iframe.`);
                 }
 
-                // Vrstva 2: Přímý zápis do iframe.contentDocument.body.
-                // Použije se když CKEDITOR API není dostupné v sandboxu Tampermonkey.
-                // Identifikujeme wrapper div podle konvence CKEditor: div#cke_{id}.
+                // Vrstva 2: Přímý zápis do iframe.contentDocument.body
                 const ckeWrapper = document.getElementById('cke_' + id);
+                console.log(`[Riscon JSON] div#cke_${id}:`, ckeWrapper ? 'nalezen' : 'CHYBÍ');
                 if (ckeWrapper) {
                     const iframe = ckeWrapper.querySelector('iframe.cke_wysiwyg_frame');
+                    console.log(`[Riscon JSON] iframe v div#cke_${id}:`, iframe ? 'nalezen' : 'CHYBÍ');
                     if (iframe) {
                         try {
                             const doc = iframe.contentDocument || iframe.contentWindow?.document;
+                            console.log(`[Riscon JSON] iframe.contentDocument:`, doc ? 'OK' : 'NULL', '| body:', doc?.body ? 'OK' : 'NULL');
                             if (doc && doc.body) {
                                 doc.body.innerHTML = v;
-                                // Tiše aktualizujeme hidden textarea pro odeslání formuláře.
-                                // Nevoláme fire() – zabráníme zpětné synchronizaci CKEditor.
                                 const ta = document.getElementById(id);
                                 if (ta) ta.value = v;
+                                console.log(`[Riscon JSON] Přímý zápis do iframe pro '${id}' OK`);
                                 return;
                             }
                         } catch (e) {
-                            console.warn(`Riscon JSON: Přímý zápis do iframe selhal pro '${id}'.`, e);
+                            console.warn(`[Riscon JSON] Přímý zápis do iframe selhal pro '${id}':`, e);
                         }
                     }
                 }
 
-                // Vrstva 3: Poslední záchrana – nastavíme aspoň hidden textarea.
+                // Vrstva 3: Poslední záchrana
+                console.warn(`[Riscon JSON] Fallback setVal() pro '${id}' – CKEditor se nepodařilo aktualizovat.`);
                 setVal(id, v);
             };
 
