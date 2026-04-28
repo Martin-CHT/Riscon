@@ -1,7 +1,29 @@
-window.RisconSuite = window.RisconSuite || {};
-window.RisconSuite.Modules = window.RisconSuite.Modules || {};
+// ==UserScript==
+// @name         Riscon: Autofill Úrazy
+// @namespace    https://github.com/Martin-CHT/Riscon
+// @version      9.0.0
+// @description  Modul pro automatické vyplňování formuláře úrazů (vkládá tlačítko Vyplnit). Součást Riscon Suite – lze nainstalovat samostatně nebo načíst přes @require.
+// @author       Martin
+// @copyright    2025-2026, Martin
+// @license      Proprietary - internal use only
+// @homepageURL  https://github.com/Martin-CHT/Riscon
+// @updateURL    https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/13-modul-autofill-urazy.js
+// @downloadURL  https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/13-modul-autofill-urazy.js
+// @match        https://*/ords/*/f?p=110:6501:*
+// @match        https://www.riscon.cz/go/f?p=110:6501:*
+// @noframes
+// @run-at       document-end
+// @tag          Riscon
+// ==/UserScript==
 
-window.RisconSuite.Modules.UrazyAutofill = {
+(function () {
+    'use strict';
+
+    window.RisconSuite = window.RisconSuite || {};
+    const RS = window.RisconSuite;
+    RS.Modules = RS.Modules || {};
+
+    RS.Modules.UrazyAutofill = {
     init: function () {
         // Spouštíme pouze na straně 6501
         if (window.location.href.indexOf('f?p=110:6501:') === -1) return;
@@ -203,3 +225,14 @@ window.RisconSuite.Modules.UrazyAutofill = {
         }
     }
 };
+
+    // Standalone spuštění (pokud běží bez orchestrátoru)
+    if (!RS.Config) {
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => RS.Modules.UrazyAutofill.init());
+        } else {
+            setTimeout(() => RS.Modules.UrazyAutofill.init(), 500);
+        }
+    }
+
+})();
