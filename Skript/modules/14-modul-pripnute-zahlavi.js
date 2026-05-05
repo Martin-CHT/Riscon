@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Pripnute zahlavi tabulek
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      9.0.1
+// @version      9.0.2
 // @description  Pripnuti zahlavi reportovych tabulek pri scrollovani strankou. Soucast Riscon Suite - lze nainstalovat samostatne nebo nacist pres @require.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -25,7 +25,7 @@
     const RS = window.RisconSuite;
     RS.Modules = RS.Modules || {};
 
-    const TABLE_SELECTOR = 'table.a-IRR-table, table.t-Report-report, table.u-Report-table';
+    const TABLE_SELECTOR = 'table.a-IRR-table, table.t-Report-report, table.u-Report-table, table.report-standard';
     const INTERACTIVE_SELECTOR = 'a, button, input, select, textarea, label, [role="button"], [onclick]';
 
     RS.Modules.StickyHeaders = {
@@ -122,8 +122,7 @@
 
             this.tables = Array.from(document.querySelectorAll(TABLE_SELECTOR)).filter(table => {
                 if (table.closest('#riscon-sticky-table-header')) return false;
-                if (!table.tHead || !table.tBodies || table.tBodies.length === 0) return false;
-                if (table.tHead.querySelectorAll('th, td').length === 0) return false;
+                if (!this.getTableInfo(table)) return false;
                 return this.isVisible(table);
             });
 
@@ -159,14 +158,74 @@
             this.positionOverlay(active, top);
         },
 
+        getTableInfo: function (table) {
+            const headerRows = this.getHeaderRows(table);
+            if (headerRows.length === 0) return null;
+
+            const allRows = Array.from(table.rows);
+            const headerIndexes = headerRows.map(row => allRows.indexOf(row)).filter(index => index >= 0);
+            if (headerIndexes.length === 0) return null;
+
+            const lastHeaderIndex = Math.max.apply(null, headerIndexes);
+            const firstBodyRow = allRows.slice(lastHeaderIndex + 1).find(row => {
+                return row.querySelector('td') && !row.querySelector('th');
+            });
+            const headerCells = this.getHeaderCells(headerRows);
+
+            if (!firstBodyRow || headerCells.length === 0) return null;
+
+            return {
+                table: table,
+                headerRows: headerRows,
+                firstBodyRow: firstBodyRow,
+                headerCells: headerCells,
+                originalHead: table.tHead || null
+            };
+        },
+
+        getHeaderRows: function (table) {
+            if (table.tHead && table.tHead.rows.length > 0) {
+                return Array.from(table.tHead.rows).filter(row => row.querySelector('th, td'));
+            }
+
+            const rows = Array.from(table.rows);
+            const firstHeaderIndex = rows.findIndex(row => row.querySelector('th'));
+            if (firstHeaderIndex < 0) return [];
+
+            const headerRows = [];
+            for (let i = firstHeaderIndex; i < rows.length; i++) {
+                if (!rows[i].querySelector('th')) break;
+                headerRows.push(rows[i]);
+            }
+
+            return headerRows;
+        },
+
+        getHeaderCells: function (headerRows) {
+            return headerRows.reduce((cells, row) => {
+                return cells.concat(Array.from(row.cells));
+            }, []);
+        },
+
+        getHeaderHeight: function (info) {
+            const rects = info.headerRows.map(row => row.getBoundingClientRect()).filter(rect => rect.height > 0);
+            if (rects.length === 0) return 0;
+
+            const top = Math.min.apply(null, rects.map(rect => rect.top));
+            const bottom = Math.max.apply(null, rects.map(rect => rect.bottom));
+            return Math.max(1, Math.ceil(bottom - top));
+        },
+
         findActiveTable: function (top) {
             for (const table of this.tables) {
                 if (!this.isVisible(table)) continue;
 
-                const tbody = table.tBodies[0];
+                const info = this.getTableInfo(table);
+                if (!info) continue;
+
                 const tableRect = table.getBoundingClientRect();
-                const bodyRect = tbody.getBoundingClientRect();
-                const headerHeight = Math.max(1, table.tHead.getBoundingClientRect().height);
+                const bodyRect = info.firstBodyRow.getBoundingClientRect();
+                const headerHeight = this.getHeaderHeight(info);
 
                 if (bodyRect.top <= top + 1 && tableRect.bottom > top + headerHeight) {
                     return table;
@@ -177,12 +236,18 @@
         },
 
         positionOverlay: function (table, top) {
+            const info = this.getTableInfo(table);
+            if (!info) {
+                this.hide();
+                return;
+            }
+
             const tableRect = table.getBoundingClientRect();
             const clipRect = this.getClipRect(table, tableRect);
             const left = Math.max(0, Math.max(tableRect.left, clipRect.left));
             const right = Math.min(window.innerWidth, Math.min(tableRect.right, clipRect.right));
             const width = Math.max(0, right - left);
-            const headerHeight = Math.ceil(table.tHead.getBoundingClientRect().height);
+            const headerHeight = this.getHeaderHeight(info);
 
             if (width <= 0 || headerHeight <= 0) {
                 this.hide();
@@ -204,12 +269,15 @@
         },
 
         renderClone: function (table) {
+            const info = this.getTableInfo(table);
+            if (!info) return;
+
             const cloneTable = table.cloneNode(false);
             cloneTable.removeAttribute('id');
             cloneTable.className = (table.className || '') + ' riscon-sticky-clone-table';
             cloneTable.style.width = table.getBoundingClientRect().width + 'px';
 
-            const thead = table.tHead.cloneNode(true);
+            const thead = this.cloneHeader(info);
             cloneTable.appendChild(thead);
             cloneTable.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
 
@@ -219,14 +287,25 @@
 
             this.overlay.innerHTML = '';
             this.overlay.appendChild(inner);
-            this.mapInteractiveElements(table, thead);
+            this.mapInteractiveElements(info, thead);
             this.syncCellWidths(table);
+        },
+
+        cloneHeader: function (info) {
+            if (info.originalHead) return info.originalHead.cloneNode(true);
+
+            const thead = document.createElement('thead');
+            info.headerRows.forEach(row => thead.appendChild(row.cloneNode(true)));
+            return thead;
         },
 
         syncCellWidths: function (table) {
             if (!this.overlay || table !== this.activeTable) return;
 
-            const sourceCells = table.tHead.querySelectorAll('tr > th, tr > td');
+            const info = this.getTableInfo(table);
+            if (!info) return;
+
+            const sourceCells = info.headerCells;
             const cloneCells = this.overlay.querySelectorAll('thead tr > th, thead tr > td');
             sourceCells.forEach((source, index) => {
                 const clone = cloneCells[index];
@@ -274,8 +353,10 @@
             });
         },
 
-        mapInteractiveElements: function (table, clonedThead) {
-            const originals = Array.from(table.tHead.querySelectorAll(INTERACTIVE_SELECTOR));
+        mapInteractiveElements: function (info, clonedThead) {
+            const originals = info.headerRows.reduce((items, row) => {
+                return items.concat(Array.from(row.querySelectorAll(INTERACTIVE_SELECTOR)));
+            }, []);
             const clones = Array.from(clonedThead.querySelectorAll(INTERACTIVE_SELECTOR));
 
             clones.forEach((clone, index) => {
