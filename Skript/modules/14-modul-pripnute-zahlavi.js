@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Pripnute zahlavi tabulek
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      9.0.2
+// @version      9.0.3
 // @description  Pripnuti zahlavi reportovych tabulek pri scrollovani strankou. Soucast Riscon Suite - lze nainstalovat samostatne nebo nacist pres @require.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -277,6 +277,9 @@
             cloneTable.className = (table.className || '') + ' riscon-sticky-clone-table';
             cloneTable.style.width = table.getBoundingClientRect().width + 'px';
 
+            const colGroup = this.buildColGroup(table, info);
+            if (colGroup) cloneTable.appendChild(colGroup);
+
             const thead = this.cloneHeader(info);
             cloneTable.appendChild(thead);
             cloneTable.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
@@ -297,6 +300,54 @@
             const thead = document.createElement('thead');
             info.headerRows.forEach(row => thead.appendChild(row.cloneNode(true)));
             return thead;
+        },
+
+        buildColGroup: function (table, info) {
+            const widths = this.getColumnWidths(table, info);
+            if (widths.length === 0) return null;
+
+            const colGroup = document.createElement('colgroup');
+            widths.forEach(width => {
+                const col = document.createElement('col');
+                col.style.width = width + 'px';
+                col.style.minWidth = width + 'px';
+                col.style.maxWidth = width + 'px';
+                colGroup.appendChild(col);
+            });
+
+            return colGroup;
+        },
+
+        getColumnWidths: function (table, info) {
+            const rows = Array.from(table.rows).filter(row => {
+                if (info.headerRows.includes(row)) return false;
+                if (row.closest('#riscon-sticky-table-header')) return false;
+                if (!this.isVisible(row)) return false;
+                if (row.querySelector('th')) return false;
+                if (row.cells.length <= 1) return false;
+                return true;
+            });
+
+            const layoutRow = rows.sort((a, b) => {
+                const cellsDelta = b.cells.length - a.cells.length;
+                if (cellsDelta !== 0) return cellsDelta;
+                return this.getEffectiveColumnCount(b) - this.getEffectiveColumnCount(a);
+            })[0] || info.headerRows[0];
+
+            if (!layoutRow) return [];
+
+            return Array.from(layoutRow.cells).reduce((widths, cell) => {
+                const span = Math.max(1, cell.colSpan || 1);
+                const width = cell.getBoundingClientRect().width / span;
+                for (let i = 0; i < span; i++) widths.push(width);
+                return widths;
+            }, []);
+        },
+
+        getEffectiveColumnCount: function (row) {
+            return Array.from(row.cells).reduce((sum, cell) => {
+                return sum + Math.max(1, cell.colSpan || 1);
+            }, 0);
         },
 
         syncCellWidths: function (table) {
