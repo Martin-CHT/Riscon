@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Auto ID sekvence
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      2.0.0
+// @version      3.0.0
 // @description  Při chybě s duplicitním ID automaticky navýší číselnou část pole P3101_MANUAL_ID a zopakuje stejné uložení.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -17,6 +17,7 @@
 // @tag          Riscon
 // ==/UserScript==
 
+
 (function () {
     'use strict';
 
@@ -29,13 +30,14 @@
             const MANUAL_ID_FIELD = 'P3101_MANUAL_ID';
             const MAX_ATTEMPTS = 20;
             const LOG_PREFIX = '[Riscon Auto ID]';
+            const SS_KEY = 'RisconAutoId_retry';
 
             const idInput = document.getElementById(MANUAL_ID_FIELD);
-            if (!idInput) return;
-
-            let attemptCount = 0;
-            let retryPending = false;
-            let lastRequestId = null;
+            if (!idInput) {
+                // Pole na stránce není — vymažeme případný zanechaný retry stav
+                sessionStorage.removeItem(SS_KEY);
+                return;
+            }
 
             // ---------------------------------------------------------------
             // Pomocné funkce
@@ -48,39 +50,32 @@
             }
 
             /**
-             * Navýší číselnou část ID a zapíše ji přes APEX API
-             * BEZ suppress session-state flagu — server tak obdrží správnou hodnotu.
+             * Navýší číselnou část ID.
+             * setValue() je voláno BEZ suppress session-state flagu (třetí arg),
+             * aby APEX správně zahrnul novou hodnotu do form submitu.
              * Vrátí nové ID nebo null pokud ID nemá číselný formát.
              */
-            function incrementId() {
-                const parts = parseId(idInput.value);
+            function incrementId(currentValue) {
+                const parts = parseId(currentValue);
                 if (!parts) return null;
-
                 const nextNum = String(Number(parts.number) + 1).padStart(parts.number.length, '0');
-                const nextId = `${parts.prefix}${nextNum}${parts.suffix}`;
-
-                if (window.apex && apex.item) {
-                    try {
-                        // KRITICKÉ: setValue BEZ třetího argumentu (nebo false),
-                        // aby APEX správně aktualizoval session state před submitem.
-                        apex.item(MANUAL_ID_FIELD).setValue(nextId);
-                    } catch (e) {
-                        // Záloha: přímé nastavení hodnoty + change event
-                        idInput.value = nextId;
-                        idInput.dispatchEvent(new Event('change', { bubbles: true }));
-                    }
-                } else {
-                    idInput.value = nextId;
-                    idInput.dispatchEvent(new Event('change', { bubbles: true }));
-                }
-
-                console.info(`${LOG_PREFIX} ID navýšeno na: ${nextId} (pokus ${attemptCount + 1})`);
-                return nextId;
+                return `${parts.prefix}${nextNum}${parts.suffix}`;
             }
 
-            /**
-             * Zjistí aktuální text chybových hlášení na stránce.
-             */
+            function applyIdToField(newId) {
+                if (window.apex && apex.item) {
+                    try {
+                        // KRITICKÉ: BEZ třetího argumentu = session state se aktualizuje
+                        apex.item(MANUAL_ID_FIELD).setValue(newId);
+                        return;
+                    } catch (e) {
+                        console.warn(`${LOG_PREFIX} apex.item.setValue selhalo, používám zálohu:`, e);
+                    }
+                }
+                idInput.value = newId;
+                idInput.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+
             function getErrorText() {
                 const selectors = [
                     '.t-Alert--danger',
@@ -95,10 +90,6 @@
                     .toLowerCase();
             }
 
-            /**
-             * Rozhodne, zda chybový text odpovídá chybě duplicitního ID.
-             * Vrací false pokud text je prázdný nebo neodpovídá.
-             */
             function isDuplicateIdError(text) {
                 if (!text || !text.trim()) return false;
                 return (
@@ -109,35 +100,98 @@
                 );
             }
 
-            /**
-             * Spustí APEX page submit (uložení) pomocí officiálního APEX API.
-             * Tato cesta zaručuje, že session state je správně aktualizován
-             * před odesláním na server — APEX submit pipeline je plně respektován.
-             *
-             * Hledá REQUEST hodnotu z posledního zachyceného tlačítka Uložit.
-             */
-            function triggerApexSave() {
-                const requestValue = lastRequestId || 'SAVE';
-                console.info(`${LOG_PREFIX} Spouštím retry APEX submit s REQUEST=${requestValue}`);
+            function loadRetryState() {
+                try {
+                    const raw = sessionStorage.getItem(SS_KEY);
+                    return raw ? JSON.parse(raw) : null;
+                } catch (e) {
+                    return null;
+                }
+            }
 
+            function saveRetryState(state) {
+                try {
+                    sessionStorage.setItem(SS_KEY, JSON.stringify(state));
+                } catch (e) {
+                    console.warn(`${LOG_PREFIX} Nelze uložit retry stav do sessionStorage.`);
+                }
+            }
+
+            function clearRetryState() {
+                sessionStorage.removeItem(SS_KEY);
+            }
+
+            function triggerApexSubmit(requestValue) {
+                const req = requestValue || 'SAVE';
+                console.info(`${LOG_PREFIX} Spouštím APEX submit, REQUEST=${req}`);
                 try {
                     if (window.apex && apex.page && typeof apex.page.submit === 'function') {
-                        apex.page.submit({ request: requestValue });
+                        apex.page.submit({ request: req });
                     } else if (window.apex && typeof apex.submit === 'function') {
-                        apex.submit(requestValue);
+                        apex.submit(req);
                     } else {
-                        // Záloha — standardní form submit (neprojde přes APEX pipeline)
-                        console.warn(`${LOG_PREFIX} APEX submit API není dostupné, používám zálohu.`);
+                        console.warn(`${LOG_PREFIX} APEX API nedostupné — záložní form.submit()`);
                         const form = document.getElementById('wwvFlowForm') || document.querySelector('form');
                         if (form) form.submit();
                     }
                 } catch (e) {
-                    console.error(`${LOG_PREFIX} Chyba při spouštění retry submitu:`, e);
+                    console.error(`${LOG_PREFIX} Chyba při APEX submit:`, e);
                 }
             }
 
             // ---------------------------------------------------------------
-            // Zachycení REQUEST hodnoty tlačítka Uložit
+            // B) Kontrola stavu PO načtení stránky (po reload z předchozího submitu)
+            // ---------------------------------------------------------------
+
+            const retryState = loadRetryState();
+
+            if (retryState) {
+                // Jsme v retry cyklu — zkontrolujeme, zda stránka vykazuje chybu
+                const errorText = getErrorText();
+
+                if (!isDuplicateIdError(errorText)) {
+                    // Žádná chyba duplicity → uložení prošlo (nebo nastala jiná chyba)
+                    console.info(`${LOG_PREFIX} Retry cyklus dokončen po ${retryState.attempts} pokus(ech). Uložení prošlo nebo nastala jiná chyba.`);
+                    clearRetryState();
+                    // Dále nepokračujeme — uložení bylo úspěšné nebo jiný problém
+                } else if (retryState.attempts >= MAX_ATTEMPTS) {
+                    console.warn(`${LOG_PREFIX} Dosažen maximální počet pokusů (${MAX_ATTEMPTS}). Zastavuji automatické navyšování.`);
+                    clearRetryState();
+                } else {
+                    // Stále chyba duplicity → navýšíme ID a zkusíme znovu
+                    const currentId = retryState.lastAttemptedId || idInput.value;
+                    const nextId = incrementId(currentId);
+
+                    if (!nextId) {
+                        console.warn(`${LOG_PREFIX} ID "${currentId}" nemá číselný formát — nelze navýšit. Zastavuji.`);
+                        clearRetryState();
+                    } else {
+                        const newAttempts = retryState.attempts + 1;
+                        console.info(`${LOG_PREFIX} Retry #${newAttempts}: navyšuji ID ${currentId} → ${nextId}`);
+
+                        // Aktualizujeme stav před submitem
+                        saveRetryState({
+                            attempts: newAttempts,
+                            requestValue: retryState.requestValue,
+                            lastAttemptedId: nextId
+                        });
+
+                        // Zapíšeme novou hodnotu do pole (session state se aktualizuje)
+                        applyIdToField(nextId);
+
+                        // Krátká prodleva — APEX potřebuje čas na interní zpracování setValue
+                        setTimeout(() => {
+                            triggerApexSubmit(retryState.requestValue);
+                        }, 350);
+                    }
+                }
+            } else {
+                // Nejsme v retry cyklu — normální stav, vymažeme pro jistotu
+                clearRetryState();
+            }
+
+            // ---------------------------------------------------------------
+            // A) Zachycení kliknutí na "Uložit" — uložení retry stavu PŘED submitem
             // ---------------------------------------------------------------
 
             function isSaveButton(el) {
@@ -146,83 +200,31 @@
                 return text.includes('uložit změny') || text.includes('uložit');
             }
 
-            /**
-             * Zachytí kliknutí na tlačítko Uložit a uloží REQUEST hodnotu,
-             * aby ji bylo možné použít při retry.
-             * NEPROVÁDÍ žádný retry ani neplánuje žádný timeout.
-             */
             function onSaveButtonClick(event) {
-                // Pokud jde o retry submit spuštěný naším modulem, ignorujeme
-                if (retryPending) return;
-
                 const btn = event.target.closest('button, input[type="submit"], a.t-Button');
                 if (!isSaveButton(btn)) return;
 
-                // Resetujeme čítač pokusů pouze při skutečném uložení uživatelem
-                attemptCount = 0;
+                // Zjistíme REQUEST hodnotu tlačítka
+                const requestValue = btn.getAttribute('value') ||
+                                     btn.getAttribute('data-request') ||
+                                     btn.id ||
+                                     'SAVE';
 
-                // Zjistíme REQUEST hodnotu tlačítka (APEX ji ukládá jako atribut nebo value)
-                lastRequestId = btn.getAttribute('value') ||
-                                btn.getAttribute('data-request') ||
-                                btn.id ||
-                                'SAVE';
+                // Uložíme výchozí stav do sessionStorage — přežije reload stránky
+                // attempts = 0 znamená "první pokus uživatele, ne ještě retry"
+                saveRetryState({
+                    attempts: 0,
+                    requestValue: requestValue,
+                    lastAttemptedId: idInput.value
+                });
+
+                console.info(`${LOG_PREFIX} Uložit kliknuto, REQUEST=${requestValue}, ID=${idInput.value}. Retry stav připraven.`);
+                // Neblokujeme event — APEX provede submit standardní cestou
             }
 
             document.addEventListener('click', onSaveButtonClick, true);
 
-            // ---------------------------------------------------------------
-            // Detekce odpovědi serveru přes APEX eventy
-            // ---------------------------------------------------------------
-
-            /**
-             * APEX volá apexajaxcomplete na dokumentu po každém AJAX requestu.
-             * Tento event je spolehlivější než setTimeout a reaguje na skutečnou
-             * odpověď serveru.
-             *
-             * Alternativně lze naslouchat apexafterrefresh nebo apexpagesubmit events.
-             */
-            function onApexAjaxComplete() {
-                if (retryPending) return; // Zabraňujeme rekurzi
-
-                const errorText = getErrorText();
-                if (!isDuplicateIdError(errorText)) return;
-
-                if (attemptCount >= MAX_ATTEMPTS) {
-                    console.warn(`${LOG_PREFIX} Dosažen maximální počet pokusů (${MAX_ATTEMPTS}). Zastavuji.`);
-                    return;
-                }
-
-                const nextId = incrementId();
-                if (!nextId) {
-                    console.warn(`${LOG_PREFIX} ID "${idInput.value}" nemá číselný formát — nelze navýšit.`);
-                    return;
-                }
-
-                attemptCount++;
-                retryPending = true;
-
-                // Krátká prodleva, aby APEX dokončil aktualizaci DOM po chybě,
-                // a aby se nová hodnota správně zapsala do interního stavu.
-                setTimeout(() => {
-                    retryPending = false;
-                    triggerApexSave();
-                }, 300);
-            }
-
-            // Nasloucháme na APEX AJAX complete event
-            document.addEventListener('apexajaxcomplete', onApexAjaxComplete);
-
-            // Záloha: apexafterrefresh (starší verze APEX)
-            document.addEventListener('apexafterrefresh', onApexAjaxComplete);
-
-            // Záloha: apexpagesubmitready (APEX 20+) - po dokončení page submitu
-            // Tento event nese výsledek submitu, použijeme ho pro detekci chyby
-            // po page refresh způsobeném submitem.
-            // Po page submitu se stránka typicky refreshuje, takže hledáme
-            // chybový stav po DOMContentLoaded (init se znovu zavolá).
-            // Proto je zachycení po DOMContentLoaded dostatečné.
-
-            console.info(`${LOG_PREFIX} Modul inicializován. Pole ${MANUAL_ID_FIELD} nalezeno.`);
+            console.info(`${LOG_PREFIX} Modul v3 inicializován. Pole ${MANUAL_ID_FIELD} nalezeno.`);
         }
     };
 
