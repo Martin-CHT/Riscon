@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Skrývání položek (Seznamy)
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      9.0.1
+// @version      9.0.2
 // @description  Skrývání položek v shuttle listboxech s podporou profilů. Součást Riscon Suite – lze nainstalovat samostatně nebo načíst přes @require.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -28,11 +28,15 @@
 
     RS.Modules.Lists = {
         containerId: 'cht-hidden-lists-container',
+        minSelectWidth: 320,
+        minCompressedWidth: 160,
+        viewportPadding: 16,
+        measureCanvas: null,
         toggle: function (enabled) {
             const el = document.getElementById(this.containerId);
             if (enabled) {
                 this.init();
-                if (el) { el.style.display = ''; this.reapply(); }
+                if (el) { el.style.display = ''; this.reapply(); this.resizeExisting(); }
             } else {
                 if (el) el.style.display = 'none';
                 this.restoreAllOptions();
@@ -42,6 +46,7 @@
             const leftSel = document.querySelector('select[id$="_LEFT"]');
             if (!leftSel) return;
             Array.from(leftSel.options).forEach(o => { o.style.display = ''; o.disabled = false; });
+            this.resizeExisting();
         },
         reapply: function () {
             const leftSel = document.querySelector('select[id$="_LEFT"]');
@@ -60,6 +65,106 @@
                 o.style.display = h ? 'none' : '';
                 o.disabled = h;
             });
+            this.resizeExisting();
+        },
+        resizeExisting: function () {
+            const leftSel = document.querySelector('select[id$="_LEFT"]');
+            if (!leftSel) return;
+
+            const shuttleTable = leftSel.closest('table');
+            if (!shuttleTable) return;
+
+            this.fitShuttleWidths({
+                shuttleTable: shuttleTable,
+                selects: [
+                    leftSel,
+                    shuttleTable.querySelector('select[id$="_RIGHT"]'),
+                    document.querySelector('#' + this.containerId + ' select[multiple]')
+                ].filter(Boolean)
+            });
+        },
+        fitShuttleWidths: function ({ shuttleTable, selects }) {
+            if (!shuttleTable || !selects || selects.length === 0) return;
+
+            const viewportWidth = document.documentElement.clientWidth || window.innerWidth || 1024;
+            const tableLeft = Math.max(0, shuttleTable.getBoundingClientRect().left);
+            const availableWidth = Math.max(
+                this.minCompressedWidth * selects.length,
+                viewportWidth - tableLeft - this.viewportPadding
+            );
+            const fixedWidth = this.getFixedShuttleWidth(shuttleTable, selects);
+            const maxSelectsWidth = Math.max(
+                this.minCompressedWidth * selects.length,
+                availableWidth - fixedWidth
+            );
+            const minWidth = Math.min(this.minSelectWidth, Math.floor(maxSelectsWidth / selects.length));
+            const desired = selects.map(sel => Math.max(minWidth, this.measureSelectWidth(sel)));
+            const desiredTotal = desired.reduce((sum, width) => sum + width, 0);
+            const widths = desiredTotal <= maxSelectsWidth
+                ? desired
+                : this.distributeWidths(desired, minWidth, maxSelectsWidth);
+
+            selects.forEach((sel, index) => {
+                const width = Math.max(this.minCompressedWidth, Math.floor(widths[index]));
+                sel.style.width = width + 'px';
+                sel.style.maxWidth = width + 'px';
+                sel.style.boxSizing = 'border-box';
+                if (sel.parentElement) sel.parentElement.style.width = width + 'px';
+            });
+
+            const hiddenWrapper = document.querySelector('#' + this.containerId + ' > div');
+            const hiddenSel = document.querySelector('#' + this.containerId + ' select[multiple]');
+            if (hiddenWrapper && hiddenSel) {
+                hiddenWrapper.style.width = hiddenSel.style.width;
+                hiddenWrapper.style.maxWidth = hiddenSel.style.width;
+            }
+        },
+        getFixedShuttleWidth: function (shuttleTable, selects) {
+            const selectCells = new Set(selects.map(sel => sel.closest('td')).filter(Boolean));
+            return Array.from(shuttleTable.rows[0]?.cells || []).reduce((sum, cell) => {
+                if (selectCells.has(cell)) return sum;
+                return sum + cell.getBoundingClientRect().width;
+            }, 24);
+        },
+        distributeWidths: function (desired, minWidth, maxTotal) {
+            const minTotal = minWidth * desired.length;
+            if (maxTotal <= minTotal) {
+                return desired.map(() => maxTotal / desired.length);
+            }
+
+            const extras = desired.map(width => Math.max(0, width - minWidth));
+            const extraTotal = extras.reduce((sum, width) => sum + width, 0);
+            const availableExtra = maxTotal - minTotal;
+            if (extraTotal <= 0) {
+                return desired.map(() => maxTotal / desired.length);
+            }
+
+            return desired.map((width, index) => minWidth + (availableExtra * extras[index] / extraTotal));
+        },
+        measureSelectWidth: function (select) {
+            const options = Array.from(select.options).filter(o => {
+                return o.style.display !== 'none' && !o.hidden;
+            });
+            const longest = options.reduce((max, option) => {
+                return Math.max(max, this.measureText(option.textContent || '', select));
+            }, 0);
+
+            return Math.ceil(longest + 36);
+        },
+        measureText: function (text, sourceEl) {
+            if (!this.measureCanvas) this.measureCanvas = document.createElement('canvas');
+            const ctx = this.measureCanvas.getContext && this.measureCanvas.getContext('2d');
+            if (!ctx) return text.length * 7;
+
+            const style = window.getComputedStyle(sourceEl);
+            ctx.font = [
+                style.fontStyle,
+                style.fontVariant,
+                style.fontWeight,
+                style.fontSize,
+                style.fontFamily
+            ].join(' ');
+            return ctx.measureText(text).width;
         },
         init: function () {
             const Config = RS.Config;
@@ -71,6 +176,7 @@
             const shuttleTable = leftSel.closest('table');
             const shuttleRow = shuttleTable ? shuttleTable.querySelector('tr') : null;
             if (!shuttleRow) return;
+            const rightSel = shuttleTable.querySelector('select[id$="_RIGHT"]');
 
             const STORAGE_KEY = 'cht_apex_hidden_workplaces_profiles';
             const pFlow = document.getElementById('pFlowId')?.value || '0';
@@ -85,19 +191,21 @@
 
             const allOptions = Array.from(leftSel.options).map(o => ({ value: o.value, label: o.textContent, opt: o }));
             const save = () => { storeAll[pageKey] = pageData; GM_setValue(STORAGE_KEY, JSON.stringify(storeAll)); };
+            let syncWidths = () => {};
             const apply = () => {
                 const map = new Set(currentHidden);
                 allOptions.forEach(i => { const h = map.has(i.value); i.opt.style.display = h ? 'none' : ''; i.opt.disabled = h; i.opt.selected = false; });
+                syncWidths();
             };
 
             const extraTd = document.createElement('td');
             extraTd.className = 'shuttleSelect3'; extraTd.style.verticalAlign = 'top'; extraTd.id = this.containerId;
             const wrapper = document.createElement('div');
             Object.assign(wrapper.style, { fontSize: '11px', fontFamily: 'Tahoma,Arial', position: 'relative', display: 'inline-block', padding: '2px' });
-            const profRow = document.createElement('div'); profRow.style.marginBottom = '6px';
+            const profRow = document.createElement('div'); profRow.style.marginBottom = '6px'; profRow.style.whiteSpace = 'normal';
             profRow.innerHTML = `Profil: <select id="cht-h-prof" style="width:100px;margin-right:4px"></select><input id="cht-h-name" placeholder="název" style="width:80px;margin-right:4px"><button type="button" style="padding:0 4px" id="cht-h-save">Uložit</button><button type="button" style="padding:0 4px" id="cht-h-del">Smazat</button>`;
             const sel = document.createElement('select'); sel.multiple = true;
-            sel.style.width = (pageData.uiSize?.width || 350) + 'px';
+            sel.style.width = this.minSelectWidth + 'px';
             sel.style.height = (pageData.uiSize?.height || 400) + 'px';
             sel.style.fontSize = '10px';
             allOptions.forEach(i => sel.add(new Option(i.label, i.value)));
@@ -113,6 +221,30 @@
                 del: profRow.querySelector('#cht-h-del')
             };
             const rebuildProfs = () => { dom.prof.innerHTML = ''; Object.keys(pageData.profiles).forEach(k => dom.prof.add(new Option(k === 'default' ? 'Výchozí' : k, k, false, k === pageData.activeProfile))); };
+            let resizeQueued = false;
+            const queueWidthSync = () => {
+                if (resizeQueued) return;
+                resizeQueued = true;
+                requestAnimationFrame(() => {
+                    resizeQueued = false;
+                    syncWidths();
+                });
+            };
+            syncWidths = () => this.fitShuttleWidths({
+                shuttleTable: shuttleTable,
+                selects: [leftSel, rightSel, sel].filter(Boolean)
+            });
+            [leftSel, rightSel, sel].filter(Boolean).forEach(s => {
+                new MutationObserver(queueWidthSync).observe(s, {
+                    childList: true,
+                    attributes: true,
+                    attributeFilter: ['style', 'hidden', 'disabled']
+                });
+                s.addEventListener('change', queueWidthSync);
+            });
+            shuttleTable.addEventListener('click', () => setTimeout(queueWidthSync, 0), true);
+            window.addEventListener('resize', queueWidthSync);
+
             const syncSel = () => { const s = new Set(currentHidden); Array.from(sel.options).forEach(o => o.selected = s.has(o.value)); };
 
             dom.prof.onchange = () => { pageData.activeProfile = dom.prof.value; currentHidden = (pageData.profiles[pageData.activeProfile] || []).slice(); save(); syncSel(); apply(); };
@@ -121,7 +253,7 @@
             dom.del.onclick = (e) => { e.preventDefault(); if (pageData.activeProfile === 'default') return; delete pageData.profiles[pageData.activeProfile]; pageData.activeProfile = 'default'; currentHidden = pageData.profiles.default.slice(); rebuildProfs(); syncSel(); apply(); save(); };
             resetBtn.onclick = (e) => { e.preventDefault(); currentHidden = []; syncSel(); apply(); };
 
-            rebuildProfs(); syncSel(); apply();
+            rebuildProfs(); syncSel(); apply(); queueWidthSync();
         }
     };
 
