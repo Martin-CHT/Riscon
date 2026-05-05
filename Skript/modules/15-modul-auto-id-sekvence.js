@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Auto ID sekvence
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      3.0.0
+// @version      3.0.1
 // @description  Při chybě s duplicitním ID automaticky navýší číselnou část pole P3101_MANUAL_ID a zopakuje stejné uložení.
 // @author       Martin
 // @copyright    2025-2026, Martin
