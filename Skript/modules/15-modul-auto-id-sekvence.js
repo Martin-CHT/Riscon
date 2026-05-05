@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Auto ID sekvence
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      3.0.1
+// @version      3.1.0
 // @description  Při chybě s duplicitním ID automaticky navýší číselnou část pole P3101_MANUAL_ID a zopakuje stejné uložení.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -25,6 +25,8 @@
     RS.Modules = RS.Modules || {};
 
     RS.Modules.AutoIdSequence = {
+        initialized: false,
+
         init: function () {
             const MANUAL_ID_FIELD = 'P3101_MANUAL_ID';
             const MAX_ATTEMPTS = 20;
@@ -37,6 +39,11 @@
                 sessionStorage.removeItem(SS_KEY);
                 return;
             }
+
+            if (this.initialized) return;
+            this.initialized = true;
+
+            let retryClickInProgress = false;
 
             // ---------------------------------------------------------------
             // Pomocné funkce
@@ -66,13 +73,24 @@
                     try {
                         // KRITICKÉ: BEZ třetího argumentu = session state se aktualizuje
                         apex.item(MANUAL_ID_FIELD).setValue(newId);
-                        return;
                     } catch (e) {
                         console.warn(`${LOG_PREFIX} apex.item.setValue selhalo, používám zálohu:`, e);
                     }
                 }
-                idInput.value = newId;
+                if (idInput.value !== newId) idInput.value = newId;
+                idInput.dispatchEvent(new Event('input', { bubbles: true }));
                 idInput.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+
+            function readIdFromField() {
+                if (window.apex && apex.item) {
+                    try {
+                        return String(apex.item(MANUAL_ID_FIELD).getValue() || '');
+                    } catch (e) {
+                        // Spadneme na DOM hodnotu níže.
+                    }
+                }
+                return String(idInput.value || '');
             }
 
             function getErrorText() {
@@ -120,22 +138,98 @@
                 sessionStorage.removeItem(SS_KEY);
             }
 
-            function triggerApexSubmit(requestValue) {
-                const req = requestValue || 'SAVE';
-                console.info(`${LOG_PREFIX} Spouštím APEX submit, REQUEST=${req}`);
-                try {
-                    if (window.apex && apex.page && typeof apex.page.submit === 'function') {
-                        apex.page.submit({ request: req });
-                    } else if (window.apex && typeof apex.submit === 'function') {
-                        apex.submit(req);
-                    } else {
-                        console.warn(`${LOG_PREFIX} APEX API nedostupné — záložní form.submit()`);
-                        const form = document.getElementById('wwvFlowForm') || document.querySelector('form');
-                        if (form) form.submit();
-                    }
-                } catch (e) {
-                    console.error(`${LOG_PREFIX} Chyba při APEX submit:`, e);
+            function isSaveButton(el) {
+                if (!el) return false;
+                const text = (el.innerText || el.textContent || el.value || '').trim().toLowerCase();
+                return text.includes('uložit změny') || text.includes('uložit');
+            }
+
+            function getSaveButtons() {
+                return Array.from(document.querySelectorAll('button, input[type="submit"], a.t-Button'))
+                    .filter(isSaveButton);
+            }
+
+            function getButtonText(btn) {
+                return (btn.innerText || btn.textContent || btn.value || '').trim();
+            }
+
+            function getRequestValue(btn) {
+                return btn.getAttribute('value') ||
+                    btn.getAttribute('data-request') ||
+                    btn.id ||
+                    'SAVE';
+            }
+
+            function getButtonLocator(btn) {
+                const saveButtons = getSaveButtons();
+                return {
+                    id: btn.id || '',
+                    name: btn.getAttribute('name') || '',
+                    value: btn.getAttribute('value') || '',
+                    dataRequest: btn.getAttribute('data-request') || '',
+                    text: getButtonText(btn),
+                    index: saveButtons.indexOf(btn)
+                };
+            }
+
+            function matchesStoredButton(btn, locator) {
+                if (!locator) return false;
+                if (locator.id && btn.id === locator.id) return true;
+                if (locator.dataRequest && btn.getAttribute('data-request') === locator.dataRequest) return true;
+                if (locator.name && btn.getAttribute('name') === locator.name) {
+                    return !locator.value || btn.getAttribute('value') === locator.value;
                 }
+                if (locator.value && btn.getAttribute('value') === locator.value) return true;
+                return false;
+            }
+
+            function findOriginalSaveButton(locator, requestValue) {
+                const saveButtons = getSaveButtons();
+                if (!saveButtons.length) return null;
+
+                if (locator && locator.id) {
+                    const byId = document.getElementById(locator.id);
+                    if (isSaveButton(byId)) return byId;
+                }
+
+                const byLocator = saveButtons.find(btn => matchesStoredButton(btn, locator));
+                if (byLocator) return byLocator;
+
+                if (requestValue) {
+                    const byRequest = saveButtons.find(btn =>
+                        btn.getAttribute('value') === requestValue ||
+                        btn.getAttribute('data-request') === requestValue ||
+                        btn.id === requestValue
+                    );
+                    if (byRequest) return byRequest;
+                }
+
+                if (locator && Number.isInteger(locator.index) && saveButtons[locator.index]) {
+                    return saveButtons[locator.index];
+                }
+
+                if (locator && locator.text) {
+                    const byText = saveButtons.filter(btn => getButtonText(btn) === locator.text);
+                    if (byText.length === 1) return byText[0];
+                }
+
+                return saveButtons.length === 1 ? saveButtons[0] : null;
+            }
+
+            function triggerOriginalSaveButton(locator, requestValue) {
+                const btn = findOriginalSaveButton(locator, requestValue);
+                if (!btn) {
+                    console.error(`${LOG_PREFIX} Původní tlačítko Uložit se nepodařilo spolehlivě najít. Retry zastaven, aby nedošlo k obejití APEX validací.`);
+                    return false;
+                }
+
+                retryClickInProgress = true;
+                console.info(`${LOG_PREFIX} Spouštím původní tlačítko Uložit přes click(), REQUEST=${getRequestValue(btn)}.`);
+                btn.click();
+                setTimeout(() => {
+                    retryClickInProgress = false;
+                }, 0);
+                return true;
             }
 
             // ---------------------------------------------------------------
@@ -157,8 +251,8 @@
                     console.warn(`${LOG_PREFIX} Dosažen maximální počet pokusů (${MAX_ATTEMPTS}). Zastavuji automatické navyšování.`);
                     clearRetryState();
                 } else {
-                    // Stále chyba duplicity → navýšíme ID a zkusíme znovu
-                    const currentId = retryState.lastAttemptedId || idInput.value;
+                    // Stále chyba duplicity → navýšíme ID a zkusíme znovu stejným tlačítkem
+                    const currentId = retryState.lastAttemptedId || readIdFromField();
                     const nextId = incrementId(currentId);
 
                     if (!nextId) {
@@ -168,20 +262,27 @@
                         const newAttempts = retryState.attempts + 1;
                         console.info(`${LOG_PREFIX} Retry #${newAttempts}: navyšuji ID ${currentId} → ${nextId}`);
 
-                        // Aktualizujeme stav před submitem
+                        // Aktualizujeme stav před submitem, ale kliknutí řízené modulem nesmí resetovat čítač.
                         saveRetryState({
                             attempts: newAttempts,
                             requestValue: retryState.requestValue,
+                            buttonLocator: retryState.buttonLocator || null,
                             lastAttemptedId: nextId
                         });
 
-                        // Zapíšeme novou hodnotu do pole (session state se aktualizuje)
+                        // Zapíšeme novou hodnotu do pole a ověříme, že se opravdu dostala do APEX/DOM stavu.
                         applyIdToField(nextId);
-
-                        // Krátká prodleva — APEX potřebuje čas na interní zpracování setValue
-                        setTimeout(() => {
-                            triggerApexSubmit(retryState.requestValue);
-                        }, 350);
+                        if (readIdFromField() !== nextId) {
+                            console.error(`${LOG_PREFIX} Nové ID "${nextId}" není po zápisu v poli ${MANUAL_ID_FIELD}. Retry zastaven.`);
+                            clearRetryState();
+                        } else {
+                            // Krátká prodleva — APEX potřebuje čas na interní zpracování setValue/change
+                            setTimeout(() => {
+                                if (!triggerOriginalSaveButton(retryState.buttonLocator, retryState.requestValue)) {
+                                    clearRetryState();
+                                }
+                            }, 350);
+                        }
                     }
                 }
             } else {
@@ -193,27 +294,21 @@
             // A) Zachycení kliknutí na "Uložit" — uložení retry stavu PŘED submitem
             // ---------------------------------------------------------------
 
-            function isSaveButton(el) {
-                if (!el) return false;
-                const text = (el.innerText || el.textContent || el.value || '').trim().toLowerCase();
-                return text.includes('uložit změny') || text.includes('uložit');
-            }
-
             function onSaveButtonClick(event) {
+                if (retryClickInProgress) return;
+
                 const btn = event.target.closest('button, input[type="submit"], a.t-Button');
                 if (!isSaveButton(btn)) return;
 
                 // Zjistíme REQUEST hodnotu tlačítka
-                const requestValue = btn.getAttribute('value') ||
-                    btn.getAttribute('data-request') ||
-                    btn.id ||
-                    'SAVE';
+                const requestValue = getRequestValue(btn);
 
                 // Uložíme výchozí stav do sessionStorage — přežije reload stránky
                 // attempts = 0 znamená "první pokus uživatele, ne ještě retry"
                 saveRetryState({
                     attempts: 0,
                     requestValue: requestValue,
+                    buttonLocator: getButtonLocator(btn),
                     lastAttemptedId: idInput.value
                 });
 
@@ -223,7 +318,7 @@
 
             document.addEventListener('click', onSaveButtonClick, true);
 
-            console.info(`${LOG_PREFIX} Modul v3 inicializován. Pole ${MANUAL_ID_FIELD} nalezeno.`);
+            console.info(`${LOG_PREFIX} Modul v3.1 inicializován. Pole ${MANUAL_ID_FIELD} nalezeno.`);
         }
     };
 
