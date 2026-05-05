@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Riscon: Auto ID sekvence
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      4.0.0
-// @description  Při validační chybě duplicitního ID navýší číselnou část pole P3101_MANUAL_ID a zopakuje stejné standardní uložení.
+// @version      5.0.0
+// @description  Po chybě duplicity navýší číselnou část pole P3101_MANUAL_ID, ale nikdy automaticky neodesílá formulář.
 // @author       Martin
 // @copyright    2025-2026, Martin
 // @license      Proprietary - internal use only
@@ -25,14 +25,13 @@
     RS.Modules = RS.Modules || {};
 
     const FIELD_ID = 'P3101_MANUAL_ID';
-    const STATE_KEY = 'RisconAutoIdSequence.v4';
+    const STATE_KEY = 'RisconAutoIdSequence.v5';
     const LOG_PREFIX = '[Riscon Auto ID]';
     const MAX_ATTEMPTS = 100;
     const STATE_TTL_MS = 10 * 60 * 1000;
-    const RETRY_CLICK_DELAY_MS = 250;
-    const MUTATION_SETTLE_MS = 120;
+    const MUTATION_SETTLE_MS = 150;
     const RELOAD_CHECK_DELAY_MS = 300;
-    const NO_ERROR_CLEAR_DELAY_MS = 6000;
+    const NO_ERROR_CLEAR_DELAY_MS = 8000;
     const SAVE_SELECTOR = [
         'button',
         'input[type="submit"]',
@@ -47,8 +46,6 @@
         '.a-AlertMessage-text',
         '.a-AlertMessage',
         '.apex-page-error',
-        '.a-Form-error',
-        '.t-Form-error',
         '[role="alert"]'
     ];
     const FIELD_ERROR_SELECTORS = [
@@ -57,7 +54,12 @@
         `[data-for="${FIELD_ID}"]`,
         `[data-item="${FIELD_ID}"]`
     ];
-    const ERROR_RELATED_SELECTOR = GLOBAL_ERROR_SELECTORS.concat(FIELD_ERROR_SELECTORS).join(',');
+    const FORM_ERROR_SELECTORS = [
+        '.t-Form-error',
+        '.a-Form-error',
+        '.apex-item-error'
+    ];
+    const ERROR_RELATED_SELECTOR = GLOBAL_ERROR_SELECTORS.concat(FIELD_ERROR_SELECTORS, FORM_ERROR_SELECTORS).join(',');
 
     function normalizeText(value) {
         return String(value || '')
@@ -80,10 +82,14 @@
         return !!(el.offsetWidth || el.offsetHeight || el.getClientRects().length);
     }
 
-    function collectTextFromElements(elements) {
+    function uniqueElements(elements) {
         const seen = new Set();
-        return elements
-            .filter(el => el && !seen.has(el) && seen.add(el) && isVisible(el))
+        return elements.filter(el => el && !seen.has(el) && seen.add(el));
+    }
+
+    function collectVisibleText(elements) {
+        return uniqueElements(elements)
+            .filter(isVisible)
             .map(el => el.innerText || el.textContent || '')
             .filter(Boolean)
             .join(' ');
@@ -132,6 +138,7 @@
         if (field.value !== value) field.value = value;
         field.dispatchEvent(new Event('input', { bubbles: true }));
         field.dispatchEvent(new Event('change', { bubbles: true }));
+        field.dispatchEvent(new Event('blur', { bubbles: true }));
 
         return readFieldValue() === value || field.value === value;
     }
@@ -174,59 +181,6 @@
         return !!control && getControlText(control).includes('ulozit zmeny');
     }
 
-    function getSaveControls() {
-        return Array.from(document.querySelectorAll(SAVE_SELECTOR)).filter(isSaveControl);
-    }
-
-    function getControlDescriptor(control) {
-        const controls = getSaveControls();
-        return {
-            id: control.id || '',
-            name: control.getAttribute('name') || '',
-            value: control.getAttribute('value') || '',
-            dataRequest: control.getAttribute('data-request') || '',
-            href: control.getAttribute('href') || '',
-            text: getControlText(control),
-            index: controls.indexOf(control)
-        };
-    }
-
-    function matchesDescriptor(control, descriptor) {
-        if (!control || !descriptor) return false;
-        if (descriptor.id && control.id === descriptor.id) return true;
-        if (descriptor.dataRequest && control.getAttribute('data-request') === descriptor.dataRequest) return true;
-        if (descriptor.name && control.getAttribute('name') === descriptor.name) {
-            return !descriptor.value || control.getAttribute('value') === descriptor.value;
-        }
-        if (descriptor.value && control.getAttribute('value') === descriptor.value) return true;
-        if (descriptor.href && control.getAttribute('href') === descriptor.href) return true;
-        return false;
-    }
-
-    function findSaveControl(descriptor) {
-        const controls = getSaveControls();
-        if (!controls.length) return null;
-
-        if (descriptor && descriptor.id) {
-            const byId = document.getElementById(descriptor.id);
-            if (isSaveControl(byId)) return byId;
-        }
-
-        const byAttributes = controls.find(control => matchesDescriptor(control, descriptor));
-        if (byAttributes) return byAttributes;
-
-        if (descriptor && descriptor.text) {
-            const byText = controls.filter(control => getControlText(control) === descriptor.text);
-            if (byText.length === 1) return byText[0];
-        }
-
-        if (descriptor && Number.isInteger(descriptor.index) && controls[descriptor.index]) {
-            return controls[descriptor.index];
-        }
-
-        return controls.length === 1 ? controls[0] : null;
-    }
-
     function getFieldErrorText() {
         const field = getField();
         const elements = [];
@@ -236,24 +190,26 @@
         });
 
         if (field) {
-            const describedBy = String(field.getAttribute('aria-describedby') || '').split(/\s+/).filter(Boolean);
-            describedBy.forEach(id => {
-                const described = document.getElementById(id);
-                if (described) elements.push(described);
-            });
+            String(field.getAttribute('aria-describedby') || '')
+                .split(/\s+/)
+                .filter(Boolean)
+                .forEach(id => {
+                    const described = document.getElementById(id);
+                    if (described) elements.push(described);
+                });
 
             const container = field.closest('.t-Form-fieldContainer, .t-Form-inputContainer, .a-Form-fieldContainer, .apex-item-wrapper');
             if (container) {
-                elements.push(...container.querySelectorAll('.t-Form-error, .a-Form-error, .apex-item-error, [role="alert"]'));
+                elements.push(...container.querySelectorAll(FORM_ERROR_SELECTORS.concat('[role="alert"]').join(',')));
             }
         }
 
-        return collectTextFromElements(elements);
+        return collectVisibleText(elements);
     }
 
     function getGlobalErrorText() {
         const elements = GLOBAL_ERROR_SELECTORS.flatMap(selector => Array.from(document.querySelectorAll(selector)));
-        return collectTextFromElements(elements);
+        return collectVisibleText(elements);
     }
 
     function getDuplicateError() {
@@ -293,8 +249,8 @@
         if (!fieldScoped && !hasRejectSignal && !combined.includes('duplicate') && !combined.includes('unique')) return null;
 
         return {
-            text: combined,
-            signature: combined
+            signature: combined,
+            text: combined
         };
     }
 
@@ -311,7 +267,11 @@
 
             return state;
         } catch (e) {
-            sessionStorage.removeItem(STATE_KEY);
+            try {
+                sessionStorage.removeItem(STATE_KEY);
+            } catch (ignore) {
+                // Bez sessionStorage modul jen nedokáže navázat po reloadu.
+            }
             return null;
         }
     }
@@ -321,7 +281,7 @@
         try {
             sessionStorage.setItem(STATE_KEY, JSON.stringify(nextState));
         } catch (e) {
-            console.warn(`${LOG_PREFIX} Nelze uložit retry stav do sessionStorage.`, e);
+            console.warn(`${LOG_PREFIX} Nelze uložit stav kontroly do sessionStorage.`, e);
         }
         return nextState;
     }
@@ -330,7 +290,7 @@
         try {
             sessionStorage.removeItem(STATE_KEY);
         } catch (e) {
-            // Bez sessionStorage jen doběhne aktuální stránka; není potřeba zasahovat do UI.
+            // Bez sessionStorage jen doběhne aktuální stránka.
         }
     }
 
@@ -352,15 +312,13 @@
         initialized: false,
         activeState: null,
         observer: null,
-        retryTimer: null,
+        evaluateTimer: null,
         clearTimer: null,
-        internalClick: false,
 
         init: function () {
             if (this.initialized) return;
 
-            const field = getField();
-            if (!field) {
+            if (!getField()) {
                 clearState();
                 return;
             }
@@ -368,14 +326,12 @@
             this.initialized = true;
             this.resumePendingState();
             document.addEventListener('click', this.onDocumentClick.bind(this), true);
-            console.info(`${LOG_PREFIX} Modul v4.0 inicializován pro pole ${FIELD_ID}.`);
+            console.info(`${LOG_PREFIX} Modul v5.0 inicializován pro pole ${FIELD_ID}. Automatické ukládání je vypnuté.`);
         },
 
         onDocumentClick: function (event) {
             const control = event.target.closest ? event.target.closest(SAVE_SELECTOR) : null;
             if (!isSaveControl(control)) return;
-
-            if (this.internalClick) return;
 
             const currentId = readFieldValue();
             if (!parseSequencedId(currentId)) {
@@ -384,18 +340,19 @@
                 return;
             }
 
+            const currentError = getDuplicateError();
             const state = saveState({
-                version: 4,
+                version: 5,
+                mode: 'save-check',
                 createdAt: Date.now(),
                 updatedAt: Date.now(),
                 attempts: 0,
-                originalId: currentId,
                 lastAttemptedId: currentId,
-                button: getControlDescriptor(control)
+                errorAtStart: currentError ? currentError.signature : ''
             });
 
-            this.watchForAjaxResult(state);
-            console.info(`${LOG_PREFIX} Uživatel spustil standardní uložení s ID ${currentId}.`);
+            this.watchForPageCheck(state);
+            console.info(`${LOG_PREFIX} Uživatel spustil uložení s ID ${currentId}. Modul čeká pouze na výsledek kontroly stránky.`);
         },
 
         resumePendingState: function () {
@@ -403,17 +360,18 @@
             if (!state) return;
 
             this.activeState = state;
-            window.setTimeout(() => this.evaluateCurrentPageResult('reload'), RELOAD_CHECK_DELAY_MS);
-            this.scheduleClearIfNoError('Uložení prošlo nebo stránka vrátila jinou chybu.');
+            this.watchForPageCheck(state);
+            window.setTimeout(() => this.evaluatePageCheck('reload'), RELOAD_CHECK_DELAY_MS);
+            this.scheduleClearIfNoDuplicate();
         },
 
-        watchForAjaxResult: function (state) {
+        watchForPageCheck: function (state) {
             this.activeState = state;
             this.stopObserver();
 
             this.observer = new MutationObserver(records => {
                 if (!this.activeState || !mutationTouchesError(records)) return;
-                this.queueEvaluate(MUTATION_SETTLE_MS, 'mutation');
+                this.queueEvaluate('mutation');
             });
 
             this.observer.observe(document.body, {
@@ -423,85 +381,65 @@
             });
         },
 
-        queueEvaluate: function (delay, source) {
-            if (this.retryTimer) window.clearTimeout(this.retryTimer);
-            this.retryTimer = window.setTimeout(() => {
-                this.retryTimer = null;
-                this.evaluateCurrentPageResult(source);
-            }, delay);
+        queueEvaluate: function (source) {
+            if (this.evaluateTimer) window.clearTimeout(this.evaluateTimer);
+            this.evaluateTimer = window.setTimeout(() => {
+                this.evaluateTimer = null;
+                this.evaluatePageCheck(source);
+            }, MUTATION_SETTLE_MS);
         },
 
-        evaluateCurrentPageResult: function (source) {
+        evaluatePageCheck: function (source) {
             const state = this.activeState || loadState();
             if (!state) return;
 
             const duplicateError = getDuplicateError();
             if (!duplicateError) {
-                if (source === 'mutation' || source === 'reload') {
-                    this.scheduleClearIfNoError('Duplicitní chyba po odpovědi stránky není přítomná.');
-                }
+                this.scheduleClearIfNoDuplicate();
                 return;
             }
 
-            if (this.clearTimer) {
-                window.clearTimeout(this.clearTimer);
-                this.clearTimer = null;
+            if (source !== 'reload' &&
+                state.mode === 'save-check' &&
+                state.errorAtStart &&
+                duplicateError.signature === state.errorAtStart) {
+                return;
             }
-            this.retryWithNextId(state, duplicateError);
+
+            this.advanceIdAfterDuplicate(state, duplicateError);
         },
 
-        retryWithNextId: function (state, duplicateError) {
-            if (this.clearTimer) {
-                window.clearTimeout(this.clearTimer);
-                this.clearTimer = null;
-            }
-
+        advanceIdAfterDuplicate: function (state, duplicateError) {
             if (Number(state.attempts || 0) >= MAX_ATTEMPTS) {
-                console.warn(`${LOG_PREFIX} Dosažen limit ${MAX_ATTEMPTS} pokusů. Automatické navyšování zastaveno.`);
-                this.finishCycle('Limit pokusů dosažen.');
+                console.warn(`${LOG_PREFIX} Dosažen limit ${MAX_ATTEMPTS} navýšení ID bez automatického uložení.`);
+                this.finishCycle();
                 return;
             }
 
-            const currentId = state.lastAttemptedId || readFieldValue();
+            const currentId = readFieldValue() || state.lastAttemptedId;
             const nextId = nextSequencedId(currentId);
             if (!nextId) {
                 console.warn(`${LOG_PREFIX} ID "${currentId}" nemá číselnou část, kterou lze navýšit.`);
-                this.finishCycle('ID nelze navýšit.');
+                this.finishCycle();
+                return;
+            }
+
+            if (!writeFieldValue(nextId)) {
+                console.error(`${LOG_PREFIX} Nepodařilo se zapsat nové ID "${nextId}" do pole ${FIELD_ID}.`);
+                this.finishCycle();
                 return;
             }
 
             const nextState = saveState(Object.assign({}, state, {
+                mode: 'field-check',
                 attempts: Number(state.attempts || 0) + 1,
                 lastAttemptedId: nextId,
-                lastErrorSignature: duplicateError.signature
+                errorAtStart: duplicateError.signature
             }));
 
-            this.stopObserver();
-
-            if (!writeFieldValue(nextId)) {
-                console.error(`${LOG_PREFIX} Nepodařilo se zapsat nové ID "${nextId}" do pole ${FIELD_ID}.`);
-                this.finishCycle('Zápis ID selhal.');
-                return;
-            }
-
-            const control = findSaveControl(nextState.button);
-            if (!control) {
-                console.error(`${LOG_PREFIX} Nepodařilo se najít původní tlačítko pro uložení. Retry zastaven.`);
-                this.finishCycle('Původní tlačítko nenalezeno.');
-                return;
-            }
-
-            this.activeState = nextState;
-            this.watchForAjaxResult(nextState);
-
-            window.setTimeout(() => {
-                this.internalClick = true;
-                console.info(`${LOG_PREFIX} Pokus ${nextState.attempts}: zkouším standardně uložit ID ${nextId}.`);
-                control.click();
-                window.setTimeout(() => {
-                    this.internalClick = false;
-                }, 0);
-            }, RETRY_CLICK_DELAY_MS);
+            this.watchForPageCheck(nextState);
+            this.scheduleClearIfNoDuplicate();
+            console.info(`${LOG_PREFIX} Duplicitní ID zjištěno stránkou. Nastaveno další ID ${nextId}; formulář nebyl automaticky uložen.`);
         },
 
         stopObserver: function () {
@@ -513,9 +451,9 @@
 
         stopWatching: function () {
             this.stopObserver();
-            if (this.retryTimer) {
-                window.clearTimeout(this.retryTimer);
-                this.retryTimer = null;
+            if (this.evaluateTimer) {
+                window.clearTimeout(this.evaluateTimer);
+                this.evaluateTimer = null;
             }
             if (this.clearTimer) {
                 window.clearTimeout(this.clearTimer);
@@ -524,18 +462,17 @@
             this.activeState = null;
         },
 
-        scheduleClearIfNoError: function (reason) {
+        scheduleClearIfNoDuplicate: function () {
             if (this.clearTimer) window.clearTimeout(this.clearTimer);
             this.clearTimer = window.setTimeout(() => {
                 this.clearTimer = null;
-                if (!getDuplicateError()) this.finishCycle(reason);
+                if (!getDuplicateError()) this.finishCycle();
             }, NO_ERROR_CLEAR_DELAY_MS);
         },
 
-        finishCycle: function (reason) {
+        finishCycle: function () {
             this.stopWatching();
             clearState();
-            console.info(`${LOG_PREFIX} Retry cyklus ukončen. ${reason}`);
         }
     };
 
