@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Pripnute zahlavi tabulek
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      9.0.0
+// @version      9.0.1
 // @description  Pripnuti zahlavi reportovych tabulek pri scrollovani strankou. Soucast Riscon Suite - lze nainstalovat samostatne nebo nacist pres @require.
 // @author       Martin
 // @copyright    2025-2026, Martin

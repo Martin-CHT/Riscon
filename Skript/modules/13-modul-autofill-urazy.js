@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Autofill Úrazy
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      9.0.0
+// @version      9.0.1
 // @description  Modul pro automatické vyplňování formuláře úrazů (vkládá tlačítko Vyplnit). Součást Riscon Suite – lze nainstalovat samostatně nebo načíst přes @require.
 // @author       Martin
 // @copyright    2025-2026, Martin

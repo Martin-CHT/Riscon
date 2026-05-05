@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Dokumentační checklist (Úrazy)
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      9.0.1
+// @version      9.0.2
 // @description  Kontrolní seznam povinné dokumentace u pracovních úrazů. Součást Riscon Suite – lze nainstalovat samostatně nebo načíst přes @require.
 // @author       Martin
 // @copyright    2025-2026, Martin

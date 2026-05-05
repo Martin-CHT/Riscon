@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Úrazy Checklist u popisu
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      1.0.0
+// @version      1.0.1
 // @description  Univerzální checklist zobrazený vedle pole "Popis události", položky po odškrtnutí zešednou a přeškrtnou se.
 // @author       Martin
 // @match        https://*/ords/*/f?p=110:6501:*
