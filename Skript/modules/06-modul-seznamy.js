@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Skrývání položek (Seznamy)
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      9.0.2
+// @version      9.0.3
 // @description  Skrývání položek v shuttle listboxech s podporou profilů. Součást Riscon Suite – lze nainstalovat samostatně nebo načíst přes @require.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -30,6 +30,8 @@
         containerId: 'cht-hidden-lists-container',
         minSelectWidth: 320,
         minCompressedWidth: 160,
+        selectTextPadding: 52,
+        minMeasuredCharWidth: 6.2,
         viewportPadding: 16,
         measureCanvas: null,
         toggle: function (enabled) {
@@ -97,12 +99,19 @@
                 this.minCompressedWidth * selects.length,
                 availableWidth - fixedWidth
             );
-            const minWidth = Math.min(this.minSelectWidth, Math.floor(maxSelectsWidth / selects.length));
-            const desired = selects.map(sel => Math.max(minWidth, this.measureSelectWidth(sel)));
+            const desired = selects.map(sel => {
+                return Math.max(this.minCompressedWidth, this.measureSelectWidth(sel));
+            });
+            const preferredMinimums = desired.map(width => {
+                return Math.min(this.minSelectWidth, Math.max(this.minCompressedWidth, width));
+            });
             const desiredTotal = desired.reduce((sum, width) => sum + width, 0);
+            const preferredMinTotal = preferredMinimums.reduce((sum, width) => sum + width, 0);
             const widths = desiredTotal <= maxSelectsWidth
                 ? desired
-                : this.distributeWidths(desired, minWidth, maxSelectsWidth);
+                : preferredMinTotal <= maxSelectsWidth
+                    ? this.distributeWidths(desired, preferredMinimums, maxSelectsWidth)
+                    : this.distributeWidths(preferredMinimums, selects.map(() => this.minCompressedWidth), maxSelectsWidth);
 
             selects.forEach((sel, index) => {
                 const width = Math.max(this.minCompressedWidth, Math.floor(widths[index]));
@@ -126,30 +135,35 @@
                 return sum + cell.getBoundingClientRect().width;
             }, 24);
         },
-        distributeWidths: function (desired, minWidth, maxTotal) {
-            const minTotal = minWidth * desired.length;
+        distributeWidths: function (desired, minimums, maxTotal) {
+            const minTotal = minimums.reduce((sum, width) => sum + width, 0);
             if (maxTotal <= minTotal) {
-                return desired.map(() => maxTotal / desired.length);
+                return minimums.map(width => width * maxTotal / minTotal);
             }
 
-            const extras = desired.map(width => Math.max(0, width - minWidth));
+            const extras = desired.map((width, index) => Math.max(0, width - minimums[index]));
             const extraTotal = extras.reduce((sum, width) => sum + width, 0);
             const availableExtra = maxTotal - minTotal;
             if (extraTotal <= 0) {
-                return desired.map(() => maxTotal / desired.length);
+                return minimums.slice();
             }
 
-            return desired.map((width, index) => minWidth + (availableExtra * extras[index] / extraTotal));
+            return desired.map((width, index) => minimums[index] + (availableExtra * extras[index] / extraTotal));
         },
         measureSelectWidth: function (select) {
             const options = Array.from(select.options).filter(o => {
                 return o.style.display !== 'none' && !o.hidden;
             });
             const longest = options.reduce((max, option) => {
-                return Math.max(max, this.measureText(option.textContent || '', select));
+                const text = option.textContent || '';
+                const measured = Math.max(
+                    this.measureText(text, select),
+                    text.length * this.minMeasuredCharWidth
+                );
+                return Math.max(max, measured);
             }, 0);
 
-            return Math.ceil(longest + 36);
+            return Math.ceil(longest + this.selectTextPadding);
         },
         measureText: function (text, sourceEl) {
             if (!this.measureCanvas) this.measureCanvas = document.createElement('canvas');
