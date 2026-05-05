@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Skrývání položek (Seznamy)
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      9.0.3
+// @version      9.0.4
 // @description  Skrývání položek v shuttle listboxech s podporou profilů. Součást Riscon Suite – lze nainstalovat samostatně nebo načíst přes @require.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -30,6 +30,7 @@
         containerId: 'cht-hidden-lists-container',
         minSelectWidth: 320,
         minCompressedWidth: 160,
+        manualMinWidth: 180,
         selectTextPadding: 52,
         minMeasuredCharWidth: 6.2,
         viewportPadding: 16,
@@ -85,7 +86,7 @@
                 ].filter(Boolean)
             });
         },
-        fitShuttleWidths: function ({ shuttleTable, selects }) {
+        fitShuttleWidths: function ({ shuttleTable, selects, manualWidths }) {
             if (!shuttleTable || !selects || selects.length === 0) return;
 
             const viewportWidth = document.documentElement.clientWidth || window.innerWidth || 1024;
@@ -99,19 +100,24 @@
                 this.minCompressedWidth * selects.length,
                 availableWidth - fixedWidth
             );
-            const desired = selects.map(sel => {
-                return Math.max(this.minCompressedWidth, this.measureSelectWidth(sel));
-            });
-            const preferredMinimums = desired.map(width => {
-                return Math.min(this.minSelectWidth, Math.max(this.minCompressedWidth, width));
-            });
-            const desiredTotal = desired.reduce((sum, width) => sum + width, 0);
-            const preferredMinTotal = preferredMinimums.reduce((sum, width) => sum + width, 0);
-            const widths = desiredTotal <= maxSelectsWidth
-                ? desired
-                : preferredMinTotal <= maxSelectsWidth
-                    ? this.distributeWidths(desired, preferredMinimums, maxSelectsWidth)
-                    : this.distributeWidths(preferredMinimums, selects.map(() => this.minCompressedWidth), maxSelectsWidth);
+            let widths;
+            if (manualWidths && manualWidths.length === selects.length) {
+                widths = this.normalizeManualWidths(manualWidths, maxSelectsWidth);
+            } else {
+                const desired = selects.map(sel => {
+                    return Math.max(this.minCompressedWidth, this.measureSelectWidth(sel));
+                });
+                const preferredMinimums = desired.map(width => {
+                    return Math.min(this.minSelectWidth, Math.max(this.minCompressedWidth, width));
+                });
+                const desiredTotal = desired.reduce((sum, width) => sum + width, 0);
+                const preferredMinTotal = preferredMinimums.reduce((sum, width) => sum + width, 0);
+                widths = desiredTotal <= maxSelectsWidth
+                    ? desired
+                    : preferredMinTotal <= maxSelectsWidth
+                        ? this.distributeWidths(desired, preferredMinimums, maxSelectsWidth)
+                        : this.distributeWidths(preferredMinimums, selects.map(() => this.minCompressedWidth), maxSelectsWidth);
+            }
 
             selects.forEach((sel, index) => {
                 const width = Math.max(this.minCompressedWidth, Math.floor(widths[index]));
@@ -149,6 +155,90 @@
             }
 
             return desired.map((width, index) => minimums[index] + (availableExtra * extras[index] / extraTotal));
+        },
+        normalizeManualWidths: function (widths, maxTotal) {
+            const minWidth = maxTotal < this.manualMinWidth * widths.length
+                ? maxTotal / widths.length
+                : this.manualMinWidth;
+            const minimums = widths.map(() => minWidth);
+            const clamped = widths.map(width => Math.max(minWidth, Number(width) || minWidth));
+            const total = clamped.reduce((sum, width) => sum + width, 0);
+            return total <= maxTotal ? clamped : this.distributeWidths(clamped, minimums, maxTotal);
+        },
+        calculateManualWidths: function (startWidths, targetIndex, delta) {
+            const total = startWidths.reduce((sum, width) => sum + width, 0);
+            const minWidth = Math.min(this.manualMinWidth, total / startWidths.length);
+            const otherIndexes = startWidths.map((_, index) => index).filter(index => index !== targetIndex);
+            const maxTarget = total - (minWidth * otherIndexes.length);
+            const targetStart = startWidths[targetIndex];
+            const targetWidth = Math.max(minWidth, Math.min(maxTarget, targetStart + delta));
+            const diff = targetWidth - targetStart;
+            const next = startWidths.slice();
+            next[targetIndex] = targetWidth;
+            if (Math.abs(diff) < 0.1 || otherIndexes.length === 0) return next;
+
+            if (diff > 0) {
+                const capacities = otherIndexes.map(index => Math.max(0, startWidths[index] - minWidth));
+                const capacityTotal = capacities.reduce((sum, width) => sum + width, 0);
+                if (capacityTotal <= 0) return startWidths.slice();
+                otherIndexes.forEach((index, order) => {
+                    next[index] = startWidths[index] - (diff * capacities[order] / capacityTotal);
+                });
+            } else {
+                const growth = Math.abs(diff);
+                const otherTotal = otherIndexes.reduce((sum, index) => sum + startWidths[index], 0);
+                otherIndexes.forEach(index => {
+                    const ratio = otherTotal > 0 ? startWidths[index] / otherTotal : 1 / otherIndexes.length;
+                    next[index] = startWidths[index] + (growth * ratio);
+                });
+            }
+
+            return next;
+        },
+        getSelectWidth: function (select) {
+            return parseFloat(select.style.width) || select.getBoundingClientRect().width || this.minSelectWidth;
+        },
+        ensureResizeShell: function (select) {
+            if (select.parentElement?.classList?.contains('cht-list-resize-shell')) return select.parentElement;
+            const shell = document.createElement('div');
+            shell.className = 'cht-list-resize-shell';
+            Object.assign(shell.style, {
+                position: 'relative',
+                display: 'inline-block',
+                verticalAlign: 'top'
+            });
+            select.parentElement.insertBefore(shell, select);
+            shell.appendChild(select);
+            return shell;
+        },
+        attachResizeHandles: function (configs, onStart) {
+            configs.forEach(config => {
+                if (!config.select) return;
+                const shell = this.ensureResizeShell(config.select);
+                config.sides.forEach(side => {
+                    if (shell.querySelector('[data-cht-resize-side="' + side + '"]')) return;
+                    const handle = document.createElement('div');
+                    handle.dataset.chtResizeSide = side;
+                    handle.title = 'Tažením upravíte šířku seznamu';
+                    Object.assign(handle.style, {
+                        position: 'absolute',
+                        bottom: '1px',
+                        width: '13px',
+                        height: '13px',
+                        zIndex: '20',
+                        cursor: 'ew-resize',
+                        opacity: '0.75',
+                        background: 'repeating-linear-gradient(135deg, transparent 0 3px, rgba(60, 70, 90, 0.65) 3px 4px, transparent 4px 6px)'
+                    });
+                    handle.style[side] = '1px';
+                    handle.addEventListener('mousedown', event => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        onStart(event, config.index, side);
+                    });
+                    shell.appendChild(handle);
+                });
+            });
         },
         measureSelectWidth: function (select) {
             const options = Array.from(select.options).filter(o => {
@@ -206,6 +296,7 @@
             const allOptions = Array.from(leftSel.options).map(o => ({ value: o.value, label: o.textContent, opt: o }));
             const save = () => { storeAll[pageKey] = pageData; GM_setValue(STORAGE_KEY, JSON.stringify(storeAll)); };
             let syncWidths = () => {};
+            let manualWidths = null;
             const apply = () => {
                 const map = new Set(currentHidden);
                 allOptions.forEach(i => { const h = map.has(i.value); i.opt.style.display = h ? 'none' : ''; i.opt.disabled = h; i.opt.selected = false; });
@@ -235,6 +326,36 @@
                 del: profRow.querySelector('#cht-h-del')
             };
             const rebuildProfs = () => { dom.prof.innerHTML = ''; Object.keys(pageData.profiles).forEach(k => dom.prof.add(new Option(k === 'default' ? 'Výchozí' : k, k, false, k === pageData.activeProfile))); };
+            const managedSelects = [leftSel, rightSel, sel].filter(Boolean);
+            const startManualResize = (event, targetIndex, side) => {
+                const startX = event.clientX;
+                const startWidths = managedSelects.map(s => this.getSelectWidth(s));
+                const direction = side === 'right' ? 1 : -1;
+                const previousCursor = document.body.style.cursor;
+                const previousUserSelect = document.body.style.userSelect;
+                document.body.style.cursor = 'ew-resize';
+                document.body.style.userSelect = 'none';
+
+                const onMove = moveEvent => {
+                    const delta = (moveEvent.clientX - startX) * direction;
+                    manualWidths = this.calculateManualWidths(startWidths, targetIndex, delta);
+                    syncWidths();
+                };
+                const onUp = () => {
+                    document.removeEventListener('mousemove', onMove);
+                    document.removeEventListener('mouseup', onUp);
+                    document.body.style.cursor = previousCursor;
+                    document.body.style.userSelect = previousUserSelect;
+                };
+
+                document.addEventListener('mousemove', onMove);
+                document.addEventListener('mouseup', onUp);
+            };
+            this.attachResizeHandles([
+                { select: leftSel, index: managedSelects.indexOf(leftSel), sides: ['right'] },
+                { select: rightSel, index: managedSelects.indexOf(rightSel), sides: ['left', 'right'] },
+                { select: sel, index: managedSelects.indexOf(sel), sides: ['left'] }
+            ].filter(config => config.select && config.index >= 0), startManualResize);
             let resizeQueued = false;
             const queueWidthSync = () => {
                 if (resizeQueued) return;
@@ -246,9 +367,10 @@
             };
             syncWidths = () => this.fitShuttleWidths({
                 shuttleTable: shuttleTable,
-                selects: [leftSel, rightSel, sel].filter(Boolean)
+                selects: managedSelects,
+                manualWidths: manualWidths
             });
-            [leftSel, rightSel, sel].filter(Boolean).forEach(s => {
+            managedSelects.forEach(s => {
                 new MutationObserver(queueWidthSync).observe(s, {
                     childList: true,
                     attributes: true,
