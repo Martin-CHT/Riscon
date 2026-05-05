@@ -17,7 +17,6 @@
 // @tag          Riscon
 // ==/UserScript==
 
-
 (function () {
     'use strict';
 
@@ -206,9 +205,9 @@
 
                 // Zjistíme REQUEST hodnotu tlačítka
                 const requestValue = btn.getAttribute('value') ||
-                                     btn.getAttribute('data-request') ||
-                                     btn.id ||
-                                     'SAVE';
+                    btn.getAttribute('data-request') ||
+                    btn.id ||
+                    'SAVE';
 
                 // Uložíme výchozí stav do sessionStorage — přežije reload stránky
                 // attempts = 0 znamená "první pokus uživatele, ne ještě retry"
