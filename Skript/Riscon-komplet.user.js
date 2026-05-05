@@ -1,13 +1,7 @@
-diff --git a/Skript/Riscon-komplet.user.js b/Skript/Riscon-komplet.user.js
-index 21b4c1f32dbc95389d8b376c6adfdac6a4ba0964..61d449f43a42c80034f7694aaab8b66be689b4a0 100644
---- a/Skript/Riscon-komplet.user.js
-+++ b/Skript/Riscon-komplet.user.js
-@@ -1,90 +1,92 @@
  // ==UserScript==
  // @name         Riscon: Sdružené skripty
  // @namespace    https://github.com/Martin-CHT/Riscon
--// @version      9.0.14
-+// @version      9.0.16
+ // @version      9.0.16
  // @description  Sdružený balík nástrojů pro Riscon. Modulární verze – každý modul je samostatný soubor načítaný přes @require.
  // @author       Martin
  // @copyright    2025-2026, Martin
@@ -44,7 +38,7 @@ index 21b4c1f32dbc95389d8b376c6adfdac6a4ba0964..61d449f43a42c80034f7694aaab8b66b
  // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/12-modul-checklist-urazy.js?v=1.0.1
  // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/13-modul-autofill-urazy.js?v=9.0.1
  // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/14-modul-pripnute-zahlavi.js?v=9.0.3
-+// @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/15-modul-auto-id-sekvence.js?v=1.0.1
+ // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/15-modul-auto-id-sekvence.js?v=1.0.1
  // ==/UserScript==
  
  (function () {
@@ -81,7 +75,7 @@ index 21b4c1f32dbc95389d8b376c6adfdac6a4ba0964..61d449f43a42c80034f7694aaab8b66b
          RS.Modules.safeRun('Unroll', () => M.Unroll && M.Unroll.init());
          RS.Modules.safeRun('UrazyChecklist', () => M.UrazyChecklist && M.UrazyChecklist.init());
          RS.Modules.safeRun('UrazyAutofill', () => M.UrazyAutofill && M.UrazyAutofill.init());
-+        RS.Modules.safeRun('AutoIdSequence', () => M.AutoIdSequence && M.AutoIdSequence.init());
+         RS.Modules.safeRun('AutoIdSequence', () => M.AutoIdSequence && M.AutoIdSequence.init());
      };
  
      // --- Spuštění ---
