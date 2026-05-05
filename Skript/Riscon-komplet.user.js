@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Sdružené skripty
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      9.0.7
+// @version      9.0.8
 // @description  Sdružený balík nástrojů pro Riscon. Modulární verze – každý modul je samostatný soubor načítaný přes @require.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -23,10 +23,10 @@
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_deleteValue
-// @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/00-core.js?v=9.0.0
+// @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/00-core.js?v=9.0.1
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/01-styles.js?v=9.0.0
-// @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/02-settings-ui.js?v=9.0.0
-// @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/03-pulse.js?v=9.0.0
+// @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/02-settings-ui.js?v=9.0.1
+// @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/03-pulse.js?v=9.0.1
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/04-modul-json.js?v=9.0.2
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/05-modul-rizika.js?v=9.0.0
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/06-modul-seznamy.js?v=9.0.0
@@ -37,6 +37,7 @@
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/11-modul-rozbalit.js?v=9.0.2
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/12-modul-checklist-urazy.js?v=9.0.0
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/13-modul-autofill-urazy.js?v=9.0.0
+// @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/14-modul-pripnute-zahlavi.js?v=9.0.0
 // ==/UserScript==
 
 (function () {
@@ -66,6 +67,7 @@
         RS.Modules.safeRun('Risks', () => M.Risks && M.Risks.update(C.risks));
         RS.Modules.safeRun('Lists', () => M.Lists && M.Lists.toggle(C.hiddenItems.enabled));
         RS.Modules.safeRun('Rows', () => M.Rows && M.Rows.init());
+        RS.Modules.safeRun('StickyHeaders', () => M.StickyHeaders && M.StickyHeaders.toggle(C.stickyHeaders.enabled));
         RS.Modules.safeRun('Tabs', () => M.Tabs && M.Tabs.toggle(C.tabHighlight.enabled));
         RS.Modules.safeRun('Sidebar', () => M.Sidebar && M.Sidebar.toggle(C.sidebarToggle.enabled));
         RS.Modules.safeRun('Checklist', () => M.Checklist && M.Checklist.toggle(C.docChecklist.enabled));

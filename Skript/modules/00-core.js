@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Core (sdílené jádro)
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      9.0.0
+// @version      9.0.1
 // @description  Sdílená konfigurace, pomocné funkce a globální namespace RisconSuite. Součást Riscon Suite – lze nainstalovat samostatně nebo načíst přes @require.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -33,6 +33,7 @@
         risks: { labels: true, colors: true, legend: true },
         hiddenItems: { enabled: true },
         rowHighlight: { enabled: true },
+        stickyHeaders: { enabled: true },
         tabHighlight: { enabled: true },
         sidebarToggle: { enabled: true },
         docChecklist: { enabled: true },

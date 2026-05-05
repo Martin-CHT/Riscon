@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Nastavení (Settings UI)
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      9.0.0
+// @version      9.0.1
 // @description  Panel nastavení modulů Riscon Suite. Součást Riscon Suite – lze nainstalovat samostatně nebo načíst přes @require.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -89,6 +89,7 @@
                     <hr style="border:0; border-top:1px solid #eee; margin:8px 0;">
                     ${checkbox('hiddenItems.enabled', 'Skrývání položek (Seznamy)', Config.hiddenItems.enabled)}
                     ${checkbox('rowHighlight.enabled', 'Zvýraznění řádků tabulky (Klik)', Config.rowHighlight.enabled)}
+                    ${checkbox('stickyHeaders.enabled', 'Připnutí záhlaví tabulek', Config.stickyHeaders.enabled)}
                     ${checkbox('tabHighlight.enabled', 'Zvýraznění záložek', Config.tabHighlight.enabled)}
                     ${checkbox('sidebarToggle.enabled', 'Pravý panel: Zmenšení do stránky', Config.sidebarToggle.enabled)}
                     ${checkbox('docChecklist.enabled', 'Úrazy: checklist dokumentace', Config.docChecklist.enabled)}
