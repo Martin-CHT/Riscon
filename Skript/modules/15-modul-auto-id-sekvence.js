@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Auto ID sekvence
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      5.3.3
+// @version      5.3.4
 // @description  Pri serverove chybe duplicity upravi manualni ID nebo nazev profilu a znovu stiskne stejne tlacitko.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -525,11 +525,6 @@
             if (hasProfileContext && (!hasNumberContext || /stejn\w* nazv\w*/.test(normalized))) {
                 const profileFields = fields.filter(field => /_PROFILE_NAME$/.test(field.id));
                 if (profileFields.length > 0) return profileFields;
-            }
-
-            if (/identifikacn\w* cislo/.test(normalized)) {
-                const p3101ManualId = fields.filter(field => field.id === 'P3101_MANUAL_ID');
-                if (p3101ManualId.length > 0) return p3101ManualId;
             }
 
             if (hasNumberContext && !hasProfileContext) {
