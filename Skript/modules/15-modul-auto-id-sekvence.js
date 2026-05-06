@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Auto ID sekvence
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      5.3.0
+// @version      5.3.1
 // @description  Pri serverove chybe duplicity upravi P3140_MANUAL_ID, P3101_MANUAL_ID nebo P3101_PROFILE_NAME a znovu stiskne stejne tlacitko.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -36,7 +36,8 @@
     const RETRY_DELAY_MS = 700;
     const STOP_BUTTON_ID = 'riscon-auto-id-stop';
     const BUTTON_SELECTOR = 'button, input[type="button"], input[type="submit"], input[type="image"], a, [role="button"]';
-    const PROFILE_CONTEXT_RE = /profile|profil|nazev|nazv|name/;
+    const PROFILE_CONTEXT_RE = /\bnazv\w*\b|\bname\b|\bprofile[_ -]?name\b/;
+    const NUMBER_CONTEXT_RE = /manual[_ -]?id|\bcislo|\bcisel|\brada\b|\bdoklad\b|\bdokument\b|\bid profilu\b|\bidentifikator\b/;
     const ERROR_SELECTOR = [
         '.t-Alert--danger',
         '.t-Alert--warning',
@@ -514,25 +515,31 @@
 
         getFieldsForError: function (fields, errorText) {
             const normalized = normalizeText(errorText);
-            const mentioned = fields.filter(field => {
-                return normalized.indexOf(normalizeText(field.id)) !== -1 ||
-                    (field.label && normalized.indexOf(normalizeText(field.label)) !== -1);
-            });
-            if (mentioned.length > 0) return mentioned;
+            const exactIdMentioned = fields.filter(field => normalized.indexOf(normalizeText(field.id)) !== -1);
+            if (exactIdMentioned.length > 0) return exactIdMentioned;
 
-            if (PROFILE_CONTEXT_RE.test(normalized)) {
+            const hasProfileContext = PROFILE_CONTEXT_RE.test(normalized);
+            const hasNumberContext = NUMBER_CONTEXT_RE.test(normalized);
+
+            if (hasProfileContext && (!hasNumberContext || /stejn\w* nazv\w*/.test(normalized))) {
                 const profileFields = fields.filter(field => field.id === 'P3101_PROFILE_NAME');
                 if (profileFields.length > 0) return profileFields;
             }
 
-            if (/manual[_ -]?id|cislo|cisel|rada|doklad|dokument/.test(normalized)) {
+            if (hasNumberContext && !hasProfileContext) {
                 const numberFields = fields.filter(field => field.mode === 'number');
                 if (numberFields.length > 0) return numberFields;
             }
 
+            const labelMentioned = fields.filter(field => {
+                return field.label && normalized.indexOf(normalizeText(field.label)) !== -1;
+            });
+            if (labelMentioned.length === 1) return labelMentioned;
+
             const invalid = fields.filter(field => this.isFieldMarkedInvalid(field.id));
             if (invalid.length > 0) return invalid;
 
+            if (labelMentioned.length > 1) return labelMentioned;
             return fields;
         },
 
