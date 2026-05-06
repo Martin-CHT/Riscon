@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Auto ID sekvence
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      5.2.1
+// @version      5.3.0
 // @description  Pri serverove chybe duplicity upravi P3140_MANUAL_ID, P3101_MANUAL_ID nebo P3101_PROFILE_NAME a znovu stiskne stejne tlacitko.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -31,8 +31,10 @@
     ];
     const FIELD_IDS = FIELD_RULES.map(field => field.id);
     const LAST_BUTTON_KEY = 'RisconAutoIdSequence.lastButton.v6';
+    const PAUSED_KEY = 'RisconAutoIdSequence.paused.v1';
     const LAST_BUTTON_TTL_MS = 10 * 60 * 1000;
     const RETRY_DELAY_MS = 700;
+    const STOP_BUTTON_ID = 'riscon-auto-id-stop';
     const BUTTON_SELECTOR = 'button, input[type="button"], input[type="submit"], input[type="image"], a, [role="button"]';
     const PROFILE_CONTEXT_RE = /profile|profil|nazev|nazv|name/;
     const ERROR_SELECTOR = [
@@ -167,6 +169,21 @@
         } catch (e) { }
     }
 
+    function isPaused() {
+        try {
+            return sessionStorage.getItem(PAUSED_KEY) === '1';
+        } catch (e) {
+            return false;
+        }
+    }
+
+    function setPaused(paused) {
+        try {
+            if (paused) sessionStorage.setItem(PAUSED_KEY, '1');
+            else sessionStorage.removeItem(PAUSED_KEY);
+        } catch (e) { }
+    }
+
     function clearOldState() {
         try {
             sessionStorage.removeItem('RisconAutoIdSequence.v4');
@@ -190,6 +207,7 @@
             this.initialized = true;
             this.bindButtonMemory();
             this.bindErrorWatch();
+            this.createStopButton();
             this.scheduleDuplicateCheck();
         },
 
@@ -243,8 +261,82 @@
             window.setTimeout(() => this.handleDuplicateErrorIfNeeded(), 150);
         },
 
+        createStopButton: function () {
+            if (document.getElementById(STOP_BUTTON_ID)) {
+                this.updateStopButton();
+                return;
+            }
+
+            const btn = document.createElement('button');
+            btn.id = STOP_BUTTON_ID;
+            btn.type = 'button';
+            Object.assign(btn.style, {
+                position: 'fixed',
+                right: '12px',
+                bottom: '12px',
+                zIndex: '999999',
+                border: '1px solid #8a4b00',
+                borderRadius: '4px',
+                padding: '5px 9px',
+                fontSize: '12px',
+                fontFamily: 'Arial, sans-serif',
+                cursor: 'pointer',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
+            });
+
+            btn.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+
+                if (isPaused()) this.resumeRetries();
+                else this.stopRetries();
+            }, true);
+
+            document.body.appendChild(btn);
+            this.updateStopButton();
+        },
+
+        updateStopButton: function () {
+            const btn = document.getElementById(STOP_BUTTON_ID);
+            if (!btn) return;
+
+            if (isPaused()) {
+                btn.textContent = 'Auto ID zastaveno';
+                btn.title = 'Kliknutim znovu povolite automaticke zkouseni dalsi hodnoty.';
+                btn.style.background = '#666';
+                btn.style.color = '#fff';
+                btn.style.borderColor = '#555';
+            } else {
+                btn.textContent = 'Zastavit Auto ID';
+                btn.title = 'Zastavi automaticke opakovani ukladani v teto zalozce.';
+                btn.style.background = '#ffd36a';
+                btn.style.color = '#222';
+                btn.style.borderColor = '#8a4b00';
+            }
+        },
+
+        stopRetries: function () {
+            setPaused(true);
+            this.retrying = false;
+            this.waitingForResponse = false;
+            if (this.responseTimer) {
+                window.clearTimeout(this.responseTimer);
+                this.responseTimer = null;
+            }
+            this.updateStopButton();
+            console.warn('[Riscon Auto ID] Automaticke opakovani bylo rucne zastaveno.');
+        },
+
+        resumeRetries: function () {
+            setPaused(false);
+            this.lastSignature = '';
+            this.updateStopButton();
+            this.scheduleDuplicateCheck();
+            console.info('[Riscon Auto ID] Automaticke opakovani bylo znovu povoleno.');
+        },
+
         isLikelyPageButton: function (control) {
-            if (!control || control.closest('#riscon-suite-settings, #riscon-settings-trigger, #apex-json-btnwrap')) return false;
+            if (!control || control.closest('#riscon-suite-settings, #riscon-settings-trigger, #apex-json-btnwrap, #' + STOP_BUTTON_ID)) return false;
 
             const tag = control.tagName.toLowerCase();
             const type = String(control.getAttribute('type') || '').toLowerCase();
@@ -278,7 +370,7 @@
         },
 
         handleDuplicateErrorIfNeeded: function () {
-            if (this.retrying || this.waitingForResponse || !this.hasTargetField()) return;
+            if (isPaused() || this.retrying || this.waitingForResponse || !this.hasTargetField()) return;
 
             const fields = this.getPresentFields();
             if (fields.length === 0) return;
@@ -317,6 +409,12 @@
             console.info('[Riscon Auto ID] Duplicita zjistena, zkousim dalsi hodnotu.', changes.join(', '));
             this.retrying = true;
             window.setTimeout(() => {
+                if (isPaused()) {
+                    this.retrying = false;
+                    this.waitingForResponse = false;
+                    return;
+                }
+
                 const button = this.findStoredButton(record);
                 if (!button) {
                     this.retrying = false;
@@ -422,9 +520,6 @@
             });
             if (mentioned.length > 0) return mentioned;
 
-            const invalid = fields.filter(field => this.isFieldMarkedInvalid(field.id));
-            if (invalid.length > 0) return invalid;
-
             if (PROFILE_CONTEXT_RE.test(normalized)) {
                 const profileFields = fields.filter(field => field.id === 'P3101_PROFILE_NAME');
                 if (profileFields.length > 0) return profileFields;
@@ -434,6 +529,9 @@
                 const numberFields = fields.filter(field => field.mode === 'number');
                 if (numberFields.length > 0) return numberFields;
             }
+
+            const invalid = fields.filter(field => this.isFieldMarkedInvalid(field.id));
+            if (invalid.length > 0) return invalid;
 
             return fields;
         },
