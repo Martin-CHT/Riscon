@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Riscon: Auto ID sekvence
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      5.1.1
-// @description  Pri serverove chybe duplicity zvysi P3140_MANUAL_ID nebo P3101_MANUAL_ID a znovu stiskne stejne tlacitko.
+// @version      5.2.0
+// @description  Pri serverove chybe duplicity upravi P3140_MANUAL_ID, P3101_MANUAL_ID nebo P3101_PROFILE_NAME a znovu stiskne stejne tlacitko.
 // @author       Martin
 // @copyright    2025-2026, Martin
 // @license      Proprietary - internal use only
@@ -24,7 +24,12 @@
     const RS = window.RisconSuite;
     RS.Modules = RS.Modules || {};
 
-    const FIELD_IDS = ['P3140_MANUAL_ID', 'P3101_MANUAL_ID'];
+    const FIELD_RULES = [
+        { id: 'P3140_MANUAL_ID', mode: 'number' },
+        { id: 'P3101_MANUAL_ID', mode: 'number' },
+        { id: 'P3101_PROFILE_NAME', mode: 'space' }
+    ];
+    const FIELD_IDS = FIELD_RULES.map(field => field.id);
     const LAST_BUTTON_KEY = 'RisconAutoIdSequence.lastButton.v6';
     const LAST_BUTTON_TTL_MS = 10 * 60 * 1000;
     const RETRY_DELAY_MS = 700;
@@ -132,6 +137,19 @@
         return original.slice(0, start) + next + original.slice(start + current.length);
     }
 
+    function getNextFieldValue(field) {
+        if (field.mode === 'space') return field.value + ' ';
+        return incrementNumericSeries(field.value);
+    }
+
+    function getChangeLabel(field, nextValue) {
+        if (field.mode === 'space') {
+            return field.id + ': pridana koncova mezera (' + (nextValue.length - field.value.length) + ')';
+        }
+
+        return field.id + ': ' + field.value + ' -> ' + nextValue;
+    }
+
     function readLastButton() {
         try {
             const record = JSON.parse(sessionStorage.getItem(LAST_BUTTON_KEY) || 'null');
@@ -179,14 +197,15 @@
         },
 
         getPresentFields: function () {
-            return FIELD_IDS
-                .filter(id => !!document.getElementById(id))
-                .map(id => ({
-                    id: id,
-                    value: getFieldValue(id).trim(),
-                    label: getLabelText(id)
+            return FIELD_RULES
+                .filter(rule => !!document.getElementById(rule.id))
+                .map(rule => ({
+                    id: rule.id,
+                    mode: rule.mode,
+                    value: getFieldValue(rule.id),
+                    label: getLabelText(rule.id)
                 }))
-                .filter(field => field.value !== '');
+                .filter(field => field.value.trim() !== '');
         },
 
         bindButtonMemory: function () {
@@ -272,21 +291,21 @@
                 return;
             }
 
-            const fieldsToIncrement = this.getFieldsForError(fields, error.text);
-            const signature = fieldsToIncrement.map(field => field.id + '=' + field.value).join('|') + '|' + error.text;
+            const fieldsToUpdate = this.getFieldsForError(fields, error.text);
+            const signature = fieldsToUpdate.map(field => field.id + '=' + field.value).join('|') + '|' + error.text;
             if (signature === this.lastSignature) return;
             this.lastSignature = signature;
 
             const changes = [];
-            for (const field of fieldsToIncrement) {
-                const nextValue = incrementNumericSeries(field.value);
+            for (const field of fieldsToUpdate) {
+                const nextValue = getNextFieldValue(field);
                 if (!nextValue || nextValue === field.value) continue;
                 setFieldValue(field.id, nextValue);
-                changes.push(field.id + ': ' + field.value + ' -> ' + nextValue);
+                changes.push(getChangeLabel(field, nextValue));
             }
 
             if (changes.length === 0) {
-                console.warn('[Riscon Auto ID] V poli manualniho ID nebyla nalezena ciselna rada.');
+                console.warn('[Riscon Auto ID] Nebylo mozne najit dalsi hodnotu pro pole s duplicitou.');
                 return;
             }
 
@@ -294,7 +313,7 @@
             record.attempt = (record.attempt || 0) + 1;
             writeLastButton(record);
 
-            console.info('[Riscon Auto ID] Duplicita zjistena, zkousim dalsi cislo.', changes.join(', '));
+            console.info('[Riscon Auto ID] Duplicita zjistena, zkousim dalsi hodnotu.', changes.join(', '));
             this.retrying = true;
             window.setTimeout(() => {
                 const button = this.findStoredButton(record);
@@ -370,9 +389,10 @@
                     (field.label && normalized.indexOf(normalizeText(field.label)) !== -1);
             });
             const manualContext = /manual[_ -]?id|cislo|cisel|rada|doklad|dokument|constraint|omezen/.test(normalized);
+            const profileContext = /profile|profil|nazev|name/.test(normalized);
             const targetFieldError = fields.some(field => this.isFieldMarkedInvalid(field.id));
 
-            return fieldMention || manualContext || targetFieldError || /ora-00001|unique|jedinec/.test(normalized);
+            return fieldMention || manualContext || profileContext || targetFieldError || /ora-00001|unique|jedinec/.test(normalized);
         },
 
         isFieldMarkedInvalid: function (id) {
@@ -402,7 +422,19 @@
             if (mentioned.length > 0) return mentioned;
 
             const invalid = fields.filter(field => this.isFieldMarkedInvalid(field.id));
-            return invalid.length > 0 ? invalid : fields;
+            if (invalid.length > 0) return invalid;
+
+            if (/profile|profil|nazev|name/.test(normalized)) {
+                const profileFields = fields.filter(field => field.id === 'P3101_PROFILE_NAME');
+                if (profileFields.length > 0) return profileFields;
+            }
+
+            if (/manual[_ -]?id|cislo|cisel|rada|doklad|dokument/.test(normalized)) {
+                const numberFields = fields.filter(field => field.mode === 'number');
+                if (numberFields.length > 0) return numberFields;
+            }
+
+            return fields;
         },
 
         findStoredButton: function (record) {
