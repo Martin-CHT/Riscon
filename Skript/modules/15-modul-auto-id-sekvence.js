@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Auto ID sekvence
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      5.3.4
+// @version      5.3.5
 // @description  Pri serverove chybe duplicity upravi manualni ID nebo nazev profilu a znovu stiskne stejne tlacitko.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -25,10 +25,10 @@
     RS.Modules = RS.Modules || {};
 
     const FIELD_RULES = [
-        { id: 'P3140_MANUAL_ID', mode: 'number' },
-        { id: 'P3101_MANUAL_ID', mode: 'number' },
-        { id: 'P3140_PROFILE_NAME', mode: 'space' },
-        { id: 'P3101_PROFILE_NAME', mode: 'space' }
+        { id: 'P3140_MANUAL_ID', mode: 'number', retry: true },
+        { id: 'P3101_MANUAL_ID', mode: 'number', retry: false },
+        { id: 'P3140_PROFILE_NAME', mode: 'space', retry: true },
+        { id: 'P3101_PROFILE_NAME', mode: 'space', retry: true }
     ];
     const FIELD_IDS = FIELD_RULES.map(field => field.id);
     const LAST_BUTTON_KEY = 'RisconAutoIdSequence.lastButton.v6';
@@ -223,6 +223,7 @@
                 .map(rule => ({
                     id: rule.id,
                     mode: rule.mode,
+                    retry: rule.retry !== false,
                     value: getFieldValue(rule.id),
                     label: getLabelText(rule.id)
                 }))
@@ -387,6 +388,11 @@
             }
 
             const fieldsToUpdate = this.getFieldsForError(fields, error.text);
+            if (fieldsToUpdate.some(field => field.retry === false)) {
+                console.error('[Riscon Auto ID] Automaticke resubmitovani pro toto pole je z bezpecnostnich duvodu vypnute. Stranka musi duplicitu zablokovat sama, automatika ji nesmi obchazet.', fieldsToUpdate.map(field => field.id).join(', '));
+                return;
+            }
+
             const signature = fieldsToUpdate.map(field => field.id + '=' + field.value).join('|') + '|' + error.text;
             if (signature === this.lastSignature) return;
             this.lastSignature = signature;
