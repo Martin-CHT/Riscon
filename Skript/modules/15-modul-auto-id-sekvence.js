@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Auto ID sekvence
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      5.1.0
+// @version      5.1.1
 // @description  Pri serverove chybe duplicity zvysi P3140_MANUAL_ID nebo P3101_MANUAL_ID a znovu stiskne stejne tlacitko.
 // @author       Martin
 // @copyright    2025-2026, Martin
