@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Riscon: Auto ID sekvence
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      5.3.1
-// @description  Pri serverove chybe duplicity upravi P3140_MANUAL_ID, P3101_MANUAL_ID nebo P3101_PROFILE_NAME a znovu stiskne stejne tlacitko.
+// @version      5.3.2
+// @description  Pri serverove chybe duplicity upravi manualni ID nebo nazev profilu a znovu stiskne stejne tlacitko.
 // @author       Martin
 // @copyright    2025-2026, Martin
 // @license      Proprietary - internal use only
@@ -27,6 +27,7 @@
     const FIELD_RULES = [
         { id: 'P3140_MANUAL_ID', mode: 'number' },
         { id: 'P3101_MANUAL_ID', mode: 'number' },
+        { id: 'P3140_PROFILE_NAME', mode: 'space' },
         { id: 'P3101_PROFILE_NAME', mode: 'space' }
     ];
     const FIELD_IDS = FIELD_RULES.map(field => field.id);
@@ -522,7 +523,7 @@
             const hasNumberContext = NUMBER_CONTEXT_RE.test(normalized);
 
             if (hasProfileContext && (!hasNumberContext || /stejn\w* nazv\w*/.test(normalized))) {
-                const profileFields = fields.filter(field => field.id === 'P3101_PROFILE_NAME');
+                const profileFields = fields.filter(field => /_PROFILE_NAME$/.test(field.id));
                 if (profileFields.length > 0) return profileFields;
             }
 
