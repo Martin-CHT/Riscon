@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Auto ID sekvence
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      5.4.2
+// @version      5.3.3
 // @description  Pri serverove chybe duplicity upravi manualni ID nebo nazev profilu a znovu stiskne stejne tlacitko.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -24,13 +24,13 @@
     const RS = window.RisconSuite;
     RS.Modules = RS.Modules || {};
 
-    const MODULE_VERSION = '5.4.2';
     const FIELD_RULES = [
         { id: 'P3140_MANUAL_ID', mode: 'number' },
         { id: 'P3101_MANUAL_ID', mode: 'number' },
         { id: 'P3140_PROFILE_NAME', mode: 'space' },
         { id: 'P3101_PROFILE_NAME', mode: 'space' }
     ];
+    const FIELD_IDS = FIELD_RULES.map(field => field.id);
     const LAST_BUTTON_KEY = 'RisconAutoIdSequence.lastButton.v6';
     const PAUSED_KEY = 'RisconAutoIdSequence.paused.v1';
     const LAST_BUTTON_TTL_MS = 10 * 60 * 1000;
@@ -193,20 +193,6 @@
         } catch (e) { }
     }
 
-    function getFieldRules() {
-        const rules = FIELD_RULES.slice();
-
-        document.querySelectorAll('input[id$="_PROFILE_NAME"], textarea[id$="_PROFILE_NAME"]').forEach(el => {
-            if (!rules.some(rule => rule.id === el.id)) rules.push({ id: el.id, mode: 'space' });
-        });
-
-        return rules;
-    }
-
-    function isProfileField(field) {
-        return field && field.mode === 'space' && /_PROFILE_NAME$/.test(field.id);
-    }
-
     RS.Modules.AutoIdSequence = {
         initialized: false,
         observer: null,
@@ -224,19 +210,15 @@
             this.bindButtonMemory();
             this.bindErrorWatch();
             this.createStopButton();
-            console.info('[Riscon Auto ID] Modul aktivni.', {
-                version: MODULE_VERSION,
-                fields: this.getPresentFields().map(field => field.id)
-            });
             this.scheduleDuplicateCheck();
         },
 
         hasTargetField: function () {
-            return getFieldRules().some(rule => !!document.getElementById(rule.id));
+            return FIELD_IDS.some(id => !!document.getElementById(id));
         },
 
         getPresentFields: function () {
-            return getFieldRules()
+            return FIELD_RULES
                 .filter(rule => !!document.getElementById(rule.id))
                 .map(rule => ({
                     id: rule.id,
@@ -322,13 +304,13 @@
 
             if (isPaused()) {
                 btn.textContent = 'Auto ID zastaveno';
-                btn.title = 'Kliknutim znovu povolite automaticke zkouseni dalsi hodnoty. Verze ' + MODULE_VERSION + '.';
+                btn.title = 'Kliknutim znovu povolite automaticke zkouseni dalsi hodnoty.';
                 btn.style.background = '#666';
                 btn.style.color = '#fff';
                 btn.style.borderColor = '#555';
             } else {
                 btn.textContent = 'Zastavit Auto ID';
-                btn.title = 'Zastavi automaticke opakovani ukladani v teto zalozce. Verze ' + MODULE_VERSION + '.';
+                btn.title = 'Zastavi automaticke opakovani ukladani v teto zalozce.';
                 btn.style.background = '#ffd36a';
                 btn.style.color = '#222';
                 btn.style.borderColor = '#8a4b00';
@@ -405,8 +387,6 @@
             }
 
             const fieldsToUpdate = this.getFieldsForError(fields, error.text);
-            if (fieldsToUpdate.length === 0) return;
-
             const signature = fieldsToUpdate.map(field => field.id + '=' + field.value).join('|') + '|' + error.text;
             if (signature === this.lastSignature) return;
             this.lastSignature = signature;
@@ -536,24 +516,23 @@
 
         getFieldsForError: function (fields, errorText) {
             const normalized = normalizeText(errorText);
-            const hasProfileContext = PROFILE_CONTEXT_RE.test(normalized);
-            const hasNumberContext = NUMBER_CONTEXT_RE.test(normalized);
-
-            if (hasProfileContext) {
-                const profileFields = fields.filter(isProfileField);
-                if (profileFields.length > 0) return profileFields;
-
-                console.warn('[Riscon Auto ID] Hlaseni mluvi o nazvu profilu, ale na strance nebylo nalezeno pole *_PROFILE_NAME. Ciselne pole neupravuji.', {
-                    errorText: errorText,
-                    fields: fields.map(field => field.id)
-                });
-                return [];
-            }
-
             const exactIdMentioned = fields.filter(field => normalized.indexOf(normalizeText(field.id)) !== -1);
             if (exactIdMentioned.length > 0) return exactIdMentioned;
 
-            if (hasNumberContext) {
+            const hasProfileContext = PROFILE_CONTEXT_RE.test(normalized);
+            const hasNumberContext = NUMBER_CONTEXT_RE.test(normalized);
+
+            if (hasProfileContext && (!hasNumberContext || /stejn\w* nazv\w*/.test(normalized))) {
+                const profileFields = fields.filter(field => /_PROFILE_NAME$/.test(field.id));
+                if (profileFields.length > 0) return profileFields;
+            }
+
+            if (/identifikacn\w* cislo/.test(normalized)) {
+                const p3101ManualId = fields.filter(field => field.id === 'P3101_MANUAL_ID');
+                if (p3101ManualId.length > 0) return p3101ManualId;
+            }
+
+            if (hasNumberContext && !hasProfileContext) {
                 const numberFields = fields.filter(field => field.mode === 'number');
                 if (numberFields.length > 0) return numberFields;
             }
