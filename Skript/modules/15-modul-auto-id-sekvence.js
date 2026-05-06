@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Auto ID sekvence
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      5.2.0
+// @version      5.2.1
 // @description  Pri serverove chybe duplicity upravi P3140_MANUAL_ID, P3101_MANUAL_ID nebo P3101_PROFILE_NAME a znovu stiskne stejne tlacitko.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -34,6 +34,7 @@
     const LAST_BUTTON_TTL_MS = 10 * 60 * 1000;
     const RETRY_DELAY_MS = 700;
     const BUTTON_SELECTOR = 'button, input[type="button"], input[type="submit"], input[type="image"], a, [role="button"]';
+    const PROFILE_CONTEXT_RE = /profile|profil|nazev|nazv|name/;
     const ERROR_SELECTOR = [
         '.t-Alert--danger',
         '.t-Alert--warning',
@@ -389,7 +390,7 @@
                     (field.label && normalized.indexOf(normalizeText(field.label)) !== -1);
             });
             const manualContext = /manual[_ -]?id|cislo|cisel|rada|doklad|dokument|constraint|omezen/.test(normalized);
-            const profileContext = /profile|profil|nazev|name/.test(normalized);
+            const profileContext = PROFILE_CONTEXT_RE.test(normalized);
             const targetFieldError = fields.some(field => this.isFieldMarkedInvalid(field.id));
 
             return fieldMention || manualContext || profileContext || targetFieldError || /ora-00001|unique|jedinec/.test(normalized);
@@ -424,7 +425,7 @@
             const invalid = fields.filter(field => this.isFieldMarkedInvalid(field.id));
             if (invalid.length > 0) return invalid;
 
-            if (/profile|profil|nazev|name/.test(normalized)) {
+            if (PROFILE_CONTEXT_RE.test(normalized)) {
                 const profileFields = fields.filter(field => field.id === 'P3101_PROFILE_NAME');
                 if (profileFields.length > 0) return profileFields;
             }
