@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Sdružené skripty
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      9.1.1
+// @version      9.1.2
 // @description  Sdružený balík nástrojů pro Riscon. Modulární verze – každý modul je samostatný soubor načítaný přes @require.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -27,7 +27,7 @@
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/01-styles.js?v=9.0.1
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/02-settings-ui.js?v=9.0.2
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/03-pulse.js?v=9.0.2
-// @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/04-modul-json.js?v=9.0.3
+// @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/04-modul-json.js?v=9.0.4
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/05-modul-rizika.js?v=9.0.1
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/06-modul-seznamy.js?v=9.0.4
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/07-modul-radky.js?v=9.0.1

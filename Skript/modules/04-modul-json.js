@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: JSON nástroje
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      9.0.3
+// @version      9.0.4
 // @description  Panel pro vyplňování formulářů z JSON a vytěžování dat. Součást Riscon Suite – lze nainstalovat samostatně nebo načíst přes @require.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -44,6 +44,43 @@
             const $ = RS.$;
             const pause = RS.pause;
             const SIZE_KEY = 'apexJsonPanelConfig_v8';
+            const PANEL_MARGIN = 8;
+            const PANEL_MIN_WIDTH = 300;
+            const PANEL_MIN_HEIGHT = 200;
+
+            const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+            const getViewport = () => ({
+                w: Math.max(1, document.documentElement.clientWidth || window.innerWidth || 1),
+                h: Math.max(1, document.documentElement.clientHeight || window.innerHeight || 1)
+            });
+
+            const getPanelLimits = () => {
+                const vp = getViewport();
+                const maxW = Math.max(160, vp.w - PANEL_MARGIN * 2);
+                const maxH = Math.max(140, vp.h - PANEL_MARGIN * 2);
+                return {
+                    vp,
+                    minW: Math.min(PANEL_MIN_WIDTH, maxW),
+                    minH: Math.min(PANEL_MIN_HEIGHT, maxH),
+                    maxW,
+                    maxH
+                };
+            };
+
+            const normalizePanelConfig = (stored) => {
+                const limits = getPanelLimits();
+                const w = clamp(Number(stored?.w) || 700, limits.minW, limits.maxW);
+                const h = clamp(Number(stored?.h) || 380, limits.minH, limits.maxH);
+                const maxRight = Math.max(PANEL_MARGIN, limits.vp.w - w - PANEL_MARGIN);
+                const maxBottom = Math.max(PANEL_MARGIN, limits.vp.h - h - PANEL_MARGIN);
+
+                return {
+                    w,
+                    h,
+                    right: clamp(Number.isFinite(Number(stored?.right)) ? Number(stored.right) : 20, PANEL_MARGIN, maxRight),
+                    bottom: clamp(Number.isFinite(Number(stored?.bottom)) ? Number(stored.bottom) : 90, PANEL_MARGIN, maxBottom)
+                };
+            };
 
             const normalizeTail = (id, val) => {
                 let s = String(val ?? '');
@@ -248,9 +285,36 @@
             const format = (arr) => arr.map(o => JSON.stringify(o, null, 2)).join('\n===========================\n');
 
             this.loadConfig = () => { try { return JSON.parse(GM_getValue(SIZE_KEY)); } catch { return null; } };
+            this.constrainPanel = (panel) => {
+                if (!panel || panel.style.display === 'none') return;
+
+                const limits = getPanelLimits();
+                const rect = panel.getBoundingClientRect();
+                const w = clamp(panel.offsetWidth || rect.width || 700, limits.minW, limits.maxW);
+                const h = clamp(panel.offsetHeight || rect.height || 380, limits.minH, limits.maxH);
+                panel.style.width = w + 'px';
+                panel.style.height = h + 'px';
+                panel.style.left = 'auto';
+                panel.style.top = 'auto';
+
+                const nextRect = panel.getBoundingClientRect();
+                const maxRight = Math.max(PANEL_MARGIN, limits.vp.w - w - PANEL_MARGIN);
+                const maxBottom = Math.max(PANEL_MARGIN, limits.vp.h - h - PANEL_MARGIN);
+                const right = clamp(limits.vp.w - nextRect.right, PANEL_MARGIN, maxRight);
+                const bottom = clamp(limits.vp.h - nextRect.bottom, PANEL_MARGIN, maxBottom);
+                panel.style.right = Math.round(right) + 'px';
+                panel.style.bottom = Math.round(bottom) + 'px';
+            };
             this.savePanelConfig = (panel) => {
-                const s = window.getComputedStyle(panel);
-                GM_setValue(SIZE_KEY, JSON.stringify({ w: panel.offsetWidth, h: panel.offsetHeight, right: parseInt(s.right), bottom: parseInt(s.bottom) }));
+                this.constrainPanel(panel);
+                const rect = panel.getBoundingClientRect();
+                const vp = getViewport();
+                GM_setValue(SIZE_KEY, JSON.stringify({
+                    w: Math.round(panel.offsetWidth),
+                    h: Math.round(panel.offsetHeight),
+                    right: Math.round(vp.w - rect.right),
+                    bottom: Math.round(vp.h - rect.bottom)
+                }));
             };
 
             this.makeUI = () => {
@@ -277,19 +341,28 @@
                     btnWrap.appendChild(b); document.body.appendChild(btnWrap);
                 }
                 let panel = $('#apex-json-panel');
-                const stored = this.loadConfig();
+                const stored = normalizePanelConfig(this.loadConfig());
                 if (!panel) {
                     panel = document.createElement('div'); panel.id = 'apex-json-panel';
-                    Object.assign(panel.style, { position: 'fixed', zIndex: '2147483646', background: '#fff', border: '1px solid #999', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', display: 'none', borderRadius: '4px', width: (stored?.w || 700) + 'px', height: (stored?.h || 380) + 'px', right: (stored?.right ?? 20) + 'px', bottom: (stored?.bottom ?? 90) + 'px' });
+                    Object.assign(panel.style, { position: 'fixed', zIndex: '2147483646', background: '#fff', border: '1px solid #999', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', display: 'none', borderRadius: '4px', width: stored.w + 'px', height: stored.h + 'px', right: stored.right + 'px', bottom: stored.bottom + 'px' });
                     panel.innerHTML = `
                         <div class="ajp-head"><span class="ajp-title">Riscon JSON</span><button class="ajp-btn" id="apex-json-close" type="button" style="padding:2px 6px;">✕</button></div>
                         <div class="ajp-body"><div style="font-size:11px; color:#666; margin-bottom:5px;">Vlož JSON data:</div><textarea id="apex-json-text" style="flex:1; width:100%; border:1px solid #ccc; padding:5px; font-family:monospace; resize:none; outline:none;"></textarea></div>
                         <div class="ajp-foot"><button class="ajp-btn" id="apex-json-fill" type="button">Vyplnit</button><button class="ajp-btn" id="apex-json-extract" type="button">Vytěžit</button><button class="ajp-btn" id="apex-json-clear" type="button">Vymazat</button></div>
                     `;
                     document.body.appendChild(panel);
+                    this.addPanelDrag(panel);
                     this.addResizeHandles(panel);
+                    if (!this.boundJsonPanelViewportGuard) {
+                        this.boundJsonPanelViewportGuard = () => this.constrainPanel(panel);
+                        window.addEventListener('resize', this.boundJsonPanelViewportGuard, { passive: true });
+                    }
                 }
-                $('#apex-json-toggle').onclick = (e) => { e.preventDefault(); panel.style.display = (panel.style.display === 'none' ? 'flex' : 'none'); };
+                $('#apex-json-toggle').onclick = (e) => {
+                    e.preventDefault();
+                    panel.style.display = (panel.style.display === 'none' ? 'flex' : 'none');
+                    if (panel.style.display !== 'none') window.setTimeout(() => this.constrainPanel(panel), 0);
+                };
                 $('#apex-json-close', panel).onclick = () => panel.style.display = 'none';
                 $('#apex-json-clear', panel).onclick = () => $('#apex-json-text', panel).value = '';
 
@@ -317,6 +390,42 @@
                 $('#apex-json-fill', panel).onclick = async () => { try { await fillForm($('#apex-json-text', panel).value); } catch (e) { alert(e.message); } };
             };
 
+            this.addPanelDrag = (panel) => {
+                const head = $('.ajp-head', panel);
+                if (!head || head.dataset.risconDragBound) return;
+                head.dataset.risconDragBound = 'true';
+                head.style.cursor = 'move';
+
+                head.addEventListener('mousedown', (e) => {
+                    if (e.target.closest('button')) return;
+                    e.preventDefault();
+
+                    const startRect = panel.getBoundingClientRect();
+                    const vp = getViewport();
+                    const sX = e.clientX;
+                    const sY = e.clientY;
+                    const sRight = vp.w - startRect.right;
+                    const sBottom = vp.h - startRect.bottom;
+                    const maxRight = Math.max(PANEL_MARGIN, vp.w - startRect.width - PANEL_MARGIN);
+                    const maxBottom = Math.max(PANEL_MARGIN, vp.h - startRect.height - PANEL_MARGIN);
+
+                    const mm = (em) => {
+                        const dx = em.clientX - sX;
+                        const dy = em.clientY - sY;
+                        panel.style.right = Math.round(clamp(sRight - dx, PANEL_MARGIN, maxRight)) + 'px';
+                        panel.style.bottom = Math.round(clamp(sBottom - dy, PANEL_MARGIN, maxBottom)) + 'px';
+                    };
+                    const mu = () => {
+                        document.removeEventListener('mousemove', mm);
+                        document.removeEventListener('mouseup', mu);
+                        this.savePanelConfig(panel);
+                    };
+
+                    document.addEventListener('mousemove', mm);
+                    document.addEventListener('mouseup', mu);
+                });
+            };
+
             this.addResizeHandles = (panel) => {
                 ['tl', 'tr', 'bl', 'br'].forEach(pos => {
                     const h = document.createElement('div');
@@ -327,12 +436,19 @@
                     h.onmousedown = (e) => {
                         e.preventDefault();
                         const sX = e.clientX, sY = e.clientY, sW = panel.offsetWidth, sH = panel.offsetHeight;
+                        const sRect = panel.getBoundingClientRect();
+                        const vp = getViewport();
+                        const sRight = vp.w - sRect.right;
+                        const sBottom = vp.h - sRect.bottom;
                         const mm = (em) => {
                             const dx = em.clientX - sX, dy = em.clientY - sY;
-                            if (pos === 'tl') { panel.style.width = Math.max(300, sW - dx) + 'px'; panel.style.height = Math.max(200, sH - dy) + 'px'; }
-                            else if (pos === 'tr') { panel.style.width = Math.max(300, sW + dx) + 'px'; panel.style.height = Math.max(200, sH - dy) + 'px'; panel.style.right = (document.documentElement.clientWidth - panel.getBoundingClientRect().right - dx) + 'px'; }
-                            else if (pos === 'bl') { panel.style.width = Math.max(300, sW - dx) + 'px'; panel.style.height = Math.max(200, sH + dy) + 'px'; panel.style.bottom = (document.documentElement.clientHeight - panel.getBoundingClientRect().bottom - dy) + 'px'; }
-                            else if (pos === 'br') { panel.style.width = Math.max(300, sW + dx) + 'px'; panel.style.height = Math.max(200, sH + dy) + 'px'; panel.style.right = (document.documentElement.clientWidth - panel.getBoundingClientRect().right - dx) + 'px'; panel.style.bottom = (document.documentElement.clientHeight - panel.getBoundingClientRect().bottom - dy) + 'px'; }
+                            if (pos.includes('l')) panel.style.width = (sW - dx) + 'px';
+                            else panel.style.width = (sW + dx) + 'px';
+                            if (pos.includes('t')) panel.style.height = (sH - dy) + 'px';
+                            else panel.style.height = (sH + dy) + 'px';
+                            if (pos.includes('r')) panel.style.right = (sRight - dx) + 'px';
+                            if (pos.includes('b')) panel.style.bottom = (sBottom - dy) + 'px';
+                            this.constrainPanel(panel);
                         };
                         const mu = () => { document.removeEventListener('mousemove', mm); document.removeEventListener('mouseup', mu); this.savePanelConfig(panel); };
                         document.addEventListener('mousemove', mm); document.addEventListener('mouseup', mu);
