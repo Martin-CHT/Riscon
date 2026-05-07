@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Postranní panel (Sidebar Toggle)
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      9.0.2
+// @version      9.0.3
 // @description  Zmenšení / skrytí postranního panelu nenápadným tlačítkem. Součást Riscon Suite – lze nainstalovat samostatně nebo načíst přes @require.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -30,10 +30,11 @@
         toggle: function (enabled) {
             const btn = document.getElementById(this.containerId);
             if (enabled) {
+                if (this.disableOnPrintLayout()) return;
                 document.body.classList.add('riscon-sidebar-enabled');
                 this.init();
                 const nextBtn = document.getElementById(this.containerId);
-                if (nextBtn) nextBtn.style.display = this.isPrintLayoutPage() ? 'none' : 'flex';
+                if (nextBtn) nextBtn.style.display = 'flex';
             } else {
                 document.body.classList.remove('riscon-sidebar-enabled');
                 document.body.classList.remove('sidebar-collapsed');
@@ -44,20 +45,21 @@
         isPrintLayoutPage: function () {
             return !!document.querySelector('table.si_table');
         },
-        applyPrintLayoutGuard: function () {
+        disableOnPrintLayout: function () {
             if (!this.isPrintLayoutPage()) {
                 document.body.classList.remove('riscon-print-layout');
                 return false;
             }
-            document.body.classList.add('riscon-print-layout');
+            document.body.classList.remove('riscon-sidebar-enabled');
             document.body.classList.remove('sidebar-collapsed');
+            document.body.classList.remove('riscon-print-layout');
             const btn = document.getElementById(this.containerId);
             if (btn) btn.style.display = 'none';
             return true;
         },
         init: function () {
             if (document.getElementById(this.containerId)) {
-                this.applyPrintLayoutGuard();
+                this.disableOnPrintLayout();
                 return;
             }
 
@@ -68,7 +70,7 @@
             });
 
             const STORAGE_KEY = 'apex_sidebar_collapsed_state';
-            const isPrintLayout = this.applyPrintLayoutGuard();
+            const isPrintLayout = this.disableOnPrintLayout();
 
             if (!isPrintLayout && localStorage.getItem(STORAGE_KEY) === 'true') {
                 document.body.classList.add('sidebar-collapsed');
@@ -83,7 +85,7 @@
             document.body.appendChild(btn);
 
             btn.addEventListener('click', () => {
-                if (this.applyPrintLayoutGuard()) return;
+                if (this.disableOnPrintLayout()) return;
                 const isCollapsed = document.body.classList.toggle('sidebar-collapsed');
                 localStorage.setItem(STORAGE_KEY, isCollapsed);
             });
