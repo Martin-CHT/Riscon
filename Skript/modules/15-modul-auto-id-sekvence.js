@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Riscon: Auto ID sekvence
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      5.4.1
-// @description  Pri serverove chybe duplicity upravi manualni ID nebo nazev profilu a znovu stiskne stejne tlacitko.
+// @version      5.4.2
+// @description  Pri serverove chybe duplicity upravi manualni ID, poradi nebo nazev profilu a znovu stiskne stejne tlacitko.
 // @author       Martin
 // @copyright    2025-2026, Martin
 // @license      Proprietary - internal use only
@@ -24,10 +24,11 @@
     const RS = window.RisconSuite;
     RS.Modules = RS.Modules || {};
 
-    const MODULE_VERSION = '5.4.1';
+    const MODULE_VERSION = '5.4.2';
     const FIELD_RULES = [
         { id: 'P3140_MANUAL_ID', mode: 'number' },
         { id: 'P3101_MANUAL_ID', mode: 'number' },
+        { id: 'P6206_RANKING', mode: 'number' },
         { id: 'P3140_PROFILE_NAME', mode: 'space' },
         { id: 'P3101_PROFILE_NAME', mode: 'space' }
     ];
@@ -38,7 +39,7 @@
     const STOP_BUTTON_ID = 'riscon-auto-id-stop';
     const BUTTON_SELECTOR = 'button, input[type="button"], input[type="submit"], input[type="image"], a, [role="button"]';
     const PROFILE_CONTEXT_RE = /\bnazv\w*\b|\bname\b|\bprofile[_ -]?name\b/;
-    const NUMBER_CONTEXT_RE = /manual[_ -]?id|\bcislo|\bcisel|\brada\b|\bdoklad\b|\bdokument\b|\bid profilu\b|\bidentifikator\b/;
+    const NUMBER_CONTEXT_RE = /manual[_ -]?id|\bcislo|\bcisel|\branking\b|\bporadi\b|\brada\b|\bdoklad\b|\bdokument\b|\bid profilu\b|\bidentifikator\b/;
     const ERROR_SELECTOR = [
         '.t-Alert--danger',
         '.t-Alert--warning',
