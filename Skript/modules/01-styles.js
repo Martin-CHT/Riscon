@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Styly (globální CSS)
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      9.0.1
+// @version      9.0.2
 // @description  Globální CSS styly pro Riscon Suite. Součást Riscon Suite – lze nainstalovat samostatně nebo načíst přes @require.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -29,7 +29,8 @@
             GM_addStyle(`
                 @media print {
                     #riscon-settings-trigger, #riscon-suite-settings, #apex-json-btnwrap,
-                    #apex-json-panel, .ajp-btn, #riscon-eff-legend-sidebar, #sleek-toggle
+                    #apex-json-panel, .ajp-btn, #riscon-eff-legend-sidebar, #sleek-toggle,
+                    #riscon-auto-id-stop, .riscon-json-inline-preview
                     { display: none !important; visibility: hidden !important; opacity: 0 !important; }
                 }
                 /* Styl pro zvýrazněný řádek */
@@ -57,6 +58,9 @@
                 }
                 body.riscon-sidebar-enabled.sidebar-collapsed td.tbl-sidebar {
                     flex: 0 0 0px; width: 0px; opacity: 0; padding: 0 !important; margin: 0 !important; border: none !important;
+                }
+                body.riscon-sidebar-enabled.riscon-print-layout.sidebar-collapsed td.tbl-sidebar {
+                    flex: 0 0 200px; width: 200px; opacity: 1; padding: 0 4px !important; margin: 0 !important;
                 }
                 /* NENÁPADNÉ TLAČÍTKO PRO SIDEBAR */
                 #sleek-toggle {

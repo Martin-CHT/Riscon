@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: JSON nástroje
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      9.0.4
+// @version      9.0.5
 // @description  Panel pro vyplňování formulářů z JSON a vytěžování dat. Součást Riscon Suite – lze nainstalovat samostatně nebo načíst přes @require.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -36,6 +36,7 @@
             const panel = RS.$('#apex-json-panel');
             if (btn) btn.style.setProperty('display', enabled ? 'block' : 'none', 'important');
             if (panel && !enabled) panel.style.display = 'none';
+            if (!enabled && this.clearInlineJson) this.clearInlineJson();
             if (enabled && !btn && this.initialized) this.makeUI();
             if (RS.updateOpacity) RS.updateOpacity();
         },
@@ -44,6 +45,7 @@
             const $ = RS.$;
             const pause = RS.pause;
             const SIZE_KEY = 'apexJsonPanelConfig_v8';
+            const INLINE_PREVIEW_KEY = 'apexJsonInlinePreviewEnabled_v1';
             const PANEL_MARGIN = 8;
             const PANEL_MIN_WIDTH = 300;
             const PANEL_MIN_HEIGHT = 200;
@@ -225,7 +227,7 @@
                 }
             }
 
-            const extractBlocks = () => {
+            const extractBlockEntries = () => {
                 const tables = [...document.querySelectorAll('table.si_table')].filter(t => /#\s*\d+,\s*ID:/i.test(t.textContent));
                 return tables.map(t => {
                     const pick = (l, html = true) => {
@@ -248,6 +250,7 @@
                         else if (txt.includes('neshoda')) gravityVal = '4';
                     }
                     return {
+                        __table: t,
                         P6206_RANKING: id,
                         P6206_DESCRIPTION: pick('Popis'),
                         P6206_EXAMINED_PERSON: pick('Prověřovaná') || pick('Osoba'),
@@ -260,6 +263,12 @@
                     };
                 });
             };
+            const getEntryData = (entry) => {
+                const data = Object.assign({}, entry);
+                delete data.__table;
+                return data;
+            };
+            const extractBlocks = () => extractBlockEntries().map(getEntryData);
 
             const extractForm = () => {
                 const data = {};
@@ -283,6 +292,61 @@
             };
 
             const format = (arr) => arr.map(o => JSON.stringify(o, null, 2)).join('\n===========================\n');
+            const inlinePreviewStored = GM_getValue(INLINE_PREVIEW_KEY, false);
+            this.inlinePreviewEnabled = inlinePreviewStored === true || inlinePreviewStored === 'true';
+            this.lastBlockEntries = [];
+
+            const clearInlineJson = () => {
+                document.querySelectorAll('.riscon-json-inline-preview').forEach(el => el.remove());
+            };
+            this.clearInlineJson = clearInlineJson;
+
+            const updateInlineToggle = (btn) => {
+                if (!btn) return;
+                btn.textContent = this.inlinePreviewEnabled ? 'U položek: zap' : 'U položek: vyp';
+                btn.setAttribute('aria-pressed', this.inlinePreviewEnabled ? 'true' : 'false');
+                btn.title = this.inlinePreviewEnabled
+                    ? 'Vypnout zobrazeni vytezeneho JSONu u jednotlivych polozek.'
+                    : 'Zapnout zobrazeni vytezeneho JSONu u jednotlivych polozek.';
+            };
+
+            const renderInlineJson = (entries = this.lastBlockEntries) => {
+                clearInlineJson();
+                if (!this.inlinePreviewEnabled || !entries || entries.length === 0) return;
+
+                const vp = getViewport();
+                const panel = document.getElementById('apex-json-panel');
+                const panelRect = panel && panel.style.display !== 'none' ? panel.getBoundingClientRect() : null;
+                entries.forEach(entry => {
+                    const table = entry.__table;
+                    if (!table || !table.isConnected) return;
+
+                    const rect = table.getBoundingClientRect();
+                    if (!rect.width || !rect.height) return;
+
+                    const rightLimit = panelRect && panelRect.left > rect.right ? panelRect.left : vp.w;
+                    const rightSpace = rightLimit - rect.right - 16;
+                    const placeRight = rightSpace >= 220;
+                    const width = placeRight
+                        ? clamp(rightSpace, 200, 520)
+                        : clamp(rect.width, 240, Math.max(240, vp.w - 24));
+
+                    const preview = document.createElement('pre');
+                    preview.className = 'riscon-json-inline-preview';
+                    preview.textContent = JSON.stringify(getEntryData(entry), null, 2);
+                    Object.assign(preview.style, {
+                        left: Math.round(window.scrollX + (placeRight ? rect.right + 12 : rect.left)) + 'px',
+                        top: Math.round(window.scrollY + (placeRight ? rect.top : rect.bottom + 6)) + 'px',
+                        width: Math.round(width) + 'px'
+                    });
+                    document.body.appendChild(preview);
+                });
+            };
+
+            if (!this.boundInlineJsonReposition) {
+                this.boundInlineJsonReposition = () => renderInlineJson();
+                window.addEventListener('resize', this.boundInlineJsonReposition, { passive: true });
+            }
 
             this.loadConfig = () => { try { return JSON.parse(GM_getValue(SIZE_KEY)); } catch { return null; } };
             this.constrainPanel = (panel) => {
@@ -324,10 +388,18 @@
                     .ajp-head { flex: 0 0 auto; background: #f0f0f0; border-bottom: 1px solid #ccc; padding: 8px 10px; display: flex; justify-content: space-between; align-items: center; }
                     .ajp-title { font-weight: bold; font-size: 13px; color: #333; }
                     .ajp-body { flex: 1 1 auto; display: flex; flex-direction: column; padding: 10px; background: #fff; overflow: hidden; }
-                    .ajp-foot { flex: 0 0 auto; background: #f9f9f9; border-top: 1px solid #ccc; padding: 8px; display: flex; gap: 8px; }
+                    .ajp-foot { flex: 0 0 auto; background: #f9f9f9; border-top: 1px solid #ccc; padding: 8px; display: flex; gap: 8px; flex-wrap: wrap; }
                     #apex-json-btnwrap { position:fixed; z-index:2147483647; pointer-events:auto; }
                     .ajp-btn { background:#eee; border:1px solid #ccc; border-radius:3px; padding:4px 8px; cursor:pointer; color:#333; font-size:12px; font-family: Arial, sans-serif; margin: 0; }
                     .ajp-btn:hover { background:#ddd; }
+                    #apex-json-inline-toggle[aria-pressed="true"] { background:#d8edf8; border-color:#8cb8d0; }
+                    .riscon-json-inline-preview {
+                        position:absolute; z-index:2147483645; margin:0; padding:8px;
+                        min-height:80px; max-height:260px; overflow:auto; white-space:pre-wrap;
+                        background:#fff; border:2px solid #e21b1b; color:#111; box-shadow:0 2px 8px rgba(0,0,0,0.12);
+                        font-family:Consolas, "Courier New", monospace; font-size:11px; line-height:1.35;
+                    }
+                    @media print { .riscon-json-inline-preview { display:none !important; } }
                 `);
 
                 let btnWrap = $('#apex-json-btnwrap');
@@ -348,7 +420,7 @@
                     panel.innerHTML = `
                         <div class="ajp-head"><span class="ajp-title">Riscon JSON</span><button class="ajp-btn" id="apex-json-close" type="button" style="padding:2px 6px;">✕</button></div>
                         <div class="ajp-body"><div style="font-size:11px; color:#666; margin-bottom:5px;">Vlož JSON data:</div><textarea id="apex-json-text" style="flex:1; width:100%; border:1px solid #ccc; padding:5px; font-family:monospace; resize:none; outline:none;"></textarea></div>
-                        <div class="ajp-foot"><button class="ajp-btn" id="apex-json-fill" type="button">Vyplnit</button><button class="ajp-btn" id="apex-json-extract" type="button">Vytěžit</button><button class="ajp-btn" id="apex-json-clear" type="button">Vymazat</button></div>
+                        <div class="ajp-foot"><button class="ajp-btn" id="apex-json-fill" type="button">Vyplnit</button><button class="ajp-btn" id="apex-json-extract" type="button">Vytěžit</button><button class="ajp-btn" id="apex-json-inline-toggle" type="button" aria-pressed="false">U položek: vyp</button><button class="ajp-btn" id="apex-json-clear" type="button">Vymazat</button></div>
                     `;
                     document.body.appendChild(panel);
                     this.addPanelDrag(panel);
@@ -364,15 +436,34 @@
                     if (panel.style.display !== 'none') window.setTimeout(() => this.constrainPanel(panel), 0);
                 };
                 $('#apex-json-close', panel).onclick = () => panel.style.display = 'none';
-                $('#apex-json-clear', panel).onclick = () => $('#apex-json-text', panel).value = '';
+                $('#apex-json-clear', panel).onclick = () => {
+                    $('#apex-json-text', panel).value = '';
+                    this.lastBlockEntries = [];
+                    clearInlineJson();
+                };
+                const inlineToggle = $('#apex-json-inline-toggle', panel);
+                updateInlineToggle(inlineToggle);
+                if (inlineToggle) {
+                    inlineToggle.onclick = () => {
+                        this.inlinePreviewEnabled = !this.inlinePreviewEnabled;
+                        GM_setValue(INLINE_PREVIEW_KEY, this.inlinePreviewEnabled);
+                        updateInlineToggle(inlineToggle);
+                        renderInlineJson();
+                    };
+                }
 
                 $('#apex-json-extract', panel).onclick = (e) => {
                     const btnEl = e.target;
                     const origText = btnEl.textContent;
-                    const d = extractBlocks();
+                    const entries = extractBlockEntries();
+                    const d = entries.map(getEntryData);
+                    this.lastBlockEntries = entries;
                     if (d.length > 0) {
                         $('#apex-json-text', panel).value = format(d);
+                        renderInlineJson(entries);
                     } else {
+                        this.lastBlockEntries = [];
+                        clearInlineJson();
                         const formData = extractForm();
                         if (Object.keys(formData).length > 0) {
                             const now = new Date();

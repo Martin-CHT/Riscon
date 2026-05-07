@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Auto ID sekvence
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      5.4.2
+// @version      5.4.3
 // @description  Pri serverove chybe duplicity upravi manualni ID, poradi nebo nazev profilu a znovu stiskne stejne tlacitko.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -24,7 +24,7 @@
     const RS = window.RisconSuite;
     RS.Modules = RS.Modules || {};
 
-    const MODULE_VERSION = '5.4.2';
+    const MODULE_VERSION = '5.4.3';
     const FIELD_RULES = [
         { id: 'P3140_MANUAL_ID', mode: 'number' },
         { id: 'P3101_MANUAL_ID', mode: 'number' },
@@ -283,7 +283,9 @@
         },
 
         createStopButton: function () {
-            if (document.getElementById(STOP_BUTTON_ID)) {
+            const existing = document.getElementById(STOP_BUTTON_ID);
+            if (existing) {
+                this.placeStopButton(existing);
                 this.updateStopButton();
                 return;
             }
@@ -291,19 +293,8 @@
             const btn = document.createElement('button');
             btn.id = STOP_BUTTON_ID;
             btn.type = 'button';
-            Object.assign(btn.style, {
-                position: 'fixed',
-                right: '12px',
-                bottom: '12px',
-                zIndex: '999999',
-                border: '1px solid #8a4b00',
-                borderRadius: '4px',
-                padding: '5px 9px',
-                fontSize: '12px',
-                fontFamily: 'Arial, sans-serif',
-                cursor: 'pointer',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.2)'
-            });
+            btn.className = 'button-gray';
+            btn.innerHTML = '<span>Zastavit Auto ID</span>';
 
             btn.addEventListener('click', (event) => {
                 event.preventDefault();
@@ -313,26 +304,77 @@
                 else this.stopRetries();
             }, true);
 
-            document.body.appendChild(btn);
+            this.placeStopButton(btn);
             this.updateStopButton();
+            window.setTimeout(() => {
+                const delayedBtn = document.getElementById(STOP_BUTTON_ID);
+                if (!delayedBtn) return;
+                this.placeStopButton(delayedBtn);
+                this.updateStopButton();
+            }, 500);
+        },
+
+        getStopButtonContainer: function () {
+            const field = getFieldRules()
+                .map(rule => document.getElementById(rule.id))
+                .find(Boolean);
+            const region = field && field.closest('.rounded-corner-region, .t-Region, table.regionlayout');
+            const scoped = region && region.querySelector('.rc-blue-top .rc-buttons, .rc-buttons, .t-Region-headerItems, .a-IRR-controls');
+            return scoped || document.querySelector('.rc-blue-top .rc-buttons, .rc-buttons, .t-Region-headerItems, .a-IRR-controls');
+        },
+
+        placeStopButton: function (btn) {
+            const container = this.getStopButtonContainer();
+            if (container) {
+                btn.className = 'button-gray';
+                [
+                    'position', 'right', 'bottom', 'zIndex', 'border', 'borderRadius',
+                    'padding', 'fontSize', 'fontFamily', 'cursor', 'boxShadow',
+                    'background', 'color', 'borderColor'
+                ].forEach(prop => btn.style[prop] = '');
+                btn.style.marginRight = '5px';
+
+                const primaryBtn = Array.from(container.children).find(el =>
+                    el !== btn && el.matches && el.matches('.button-alt1, .t-Button--hot')
+                );
+                if (primaryBtn) container.insertBefore(btn, primaryBtn);
+                else if (btn.parentNode !== container) container.appendChild(btn);
+                return;
+            }
+
+            if (btn.parentNode !== document.body) document.body.appendChild(btn);
+            Object.assign(btn.style, {
+                position: 'fixed',
+                right: '12px',
+                bottom: '12px',
+                zIndex: '999999',
+                border: '1px solid #999',
+                borderRadius: '4px',
+                padding: '5px 9px',
+                fontSize: '12px',
+                fontFamily: 'Arial, sans-serif',
+                cursor: 'pointer',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                background: '#eee',
+                color: '#222'
+            });
         },
 
         updateStopButton: function () {
             const btn = document.getElementById(STOP_BUTTON_ID);
             if (!btn) return;
+            this.placeStopButton(btn);
 
             if (isPaused()) {
-                btn.textContent = 'Auto ID zastaveno';
+                btn.innerHTML = '<span>Auto ID zastaveno</span>';
+                btn.value = 'Auto ID zastaveno';
                 btn.title = 'Kliknutim znovu povolite automaticke zkouseni dalsi hodnoty. Verze ' + MODULE_VERSION + '.';
-                btn.style.background = '#666';
-                btn.style.color = '#fff';
-                btn.style.borderColor = '#555';
+                btn.style.fontWeight = 'bold';
             } else {
-                btn.textContent = 'Zastavit Auto ID';
+                btn.innerHTML = '<span>Zastavit Auto ID</span>';
+                btn.value = 'Zastavit Auto ID';
                 btn.title = 'Zastavi automaticke opakovani ukladani v teto zalozce. Verze ' + MODULE_VERSION + '.';
-                btn.style.background = '#ffd36a';
-                btn.style.color = '#222';
-                btn.style.borderColor = '#8a4b00';
+                btn.style.fontWeight = '';
             }
         },
 

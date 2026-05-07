@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Postranní panel (Sidebar Toggle)
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      9.0.1
+// @version      9.0.2
 // @description  Zmenšení / skrytí postranního panelu nenápadným tlačítkem. Součást Riscon Suite – lze nainstalovat samostatně nebo načíst přes @require.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -32,15 +32,34 @@
             if (enabled) {
                 document.body.classList.add('riscon-sidebar-enabled');
                 this.init();
-                if (btn) btn.style.display = 'flex';
+                const nextBtn = document.getElementById(this.containerId);
+                if (nextBtn) nextBtn.style.display = this.isPrintLayoutPage() ? 'none' : 'flex';
             } else {
                 document.body.classList.remove('riscon-sidebar-enabled');
                 document.body.classList.remove('sidebar-collapsed');
+                document.body.classList.remove('riscon-print-layout');
                 if (btn) btn.style.display = 'none';
             }
         },
+        isPrintLayoutPage: function () {
+            return !!document.querySelector('table.si_table');
+        },
+        applyPrintLayoutGuard: function () {
+            if (!this.isPrintLayoutPage()) {
+                document.body.classList.remove('riscon-print-layout');
+                return false;
+            }
+            document.body.classList.add('riscon-print-layout');
+            document.body.classList.remove('sidebar-collapsed');
+            const btn = document.getElementById(this.containerId);
+            if (btn) btn.style.display = 'none';
+            return true;
+        },
         init: function () {
-            if (document.getElementById(this.containerId)) return;
+            if (document.getElementById(this.containerId)) {
+                this.applyPrintLayoutGuard();
+                return;
+            }
 
             // Vyčištění případných starších prvků
             ['pro-sidebar-toggle', 'pro-sidebar-restore', 'sidebar-toggle-handle', 'flex-handle'].forEach(id => {
@@ -49,10 +68,13 @@
             });
 
             const STORAGE_KEY = 'apex_sidebar_collapsed_state';
+            const isPrintLayout = this.applyPrintLayoutGuard();
 
-            if (localStorage.getItem(STORAGE_KEY) === 'true') {
+            if (!isPrintLayout && localStorage.getItem(STORAGE_KEY) === 'true') {
                 document.body.classList.add('sidebar-collapsed');
             }
+
+            if (isPrintLayout) return;
 
             const btn = document.createElement('div');
             btn.id = this.containerId;
@@ -60,7 +82,8 @@
             btn.title = 'Zobrazit / Skrýt postranní panel';
             document.body.appendChild(btn);
 
-            btn.addEventListener('click', function () {
+            btn.addEventListener('click', () => {
+                if (this.applyPrintLayoutGuard()) return;
                 const isCollapsed = document.body.classList.toggle('sidebar-collapsed');
                 localStorage.setItem(STORAGE_KEY, isCollapsed);
             });
