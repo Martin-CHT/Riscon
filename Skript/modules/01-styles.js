@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Styly (globální CSS)
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      9.0.6
+// @version      9.0.7
 // @description  Globální CSS styly pro Riscon Suite. Součást Riscon Suite – lze nainstalovat samostatně nebo načíst přes @require.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -67,7 +67,7 @@
                     min-width: 0;
                     width: auto !important;
                     max-width: none;
-                    padding-right: 15px;
+                    padding-right: 7px !important;
                     box-sizing: border-box;
                     overflow-x: auto;
                 }
@@ -107,12 +107,14 @@
                 body.riscon-sidebar-enabled .a-IRR-tableContainer { overflow-x: auto !important; width: 100%; display: block; }
                 body.riscon-sidebar-enabled .a-IRR-table { width: 100% !important; min-width: 800px; }
                 body.riscon-sidebar-enabled td.tbl-sidebar {
-                    display: block !important; flex: 0 0 220px; width: 220px; max-width: 220px; box-sizing: border-box;
+                    display: block !important; flex: 0 0 228px; width: 228px; max-width: 228px; box-sizing: border-box;
+                    padding-left: 2px !important; padding-right: 4px !important;
                     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); overflow: visible; opacity: 1;
                 }
                 body.riscon-sidebar-enabled td.tbl-sidebar .sidebar-region-alt {
+                    display: block !important;
                     float: none !important;
-                    width: 210px !important;
+                    width: 100% !important;
                     max-width: 100%;
                     overflow: visible !important;
                     box-sizing: border-box;
