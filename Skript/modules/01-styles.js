@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Styly (globální CSS)
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      9.0.10
+// @version      9.0.11
 // @description  Globální CSS styly pro Riscon Suite. Součást Riscon Suite – lze nainstalovat samostatně nebo načíst přes @require.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -108,6 +108,7 @@
                 body.riscon-sidebar-enabled .a-IRR-table { width: auto !important; max-width: none; }
                 body.riscon-sidebar-enabled td.tbl-sidebar {
                     display: block !important; flex: 0 0 200px; width: 200px; max-width: 200px; box-sizing: border-box;
+                    margin-left: auto;
                     padding-left: 0 !important; padding-right: 0 !important;
                     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); overflow: hidden; opacity: 1;
                 }
