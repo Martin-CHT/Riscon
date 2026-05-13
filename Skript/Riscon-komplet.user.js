@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Sdružené skripty
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      9.1.5
+// @version      9.1.6
 // @description  Sdružený balík nástrojů pro Riscon. Modulární verze – každý modul je samostatný soubor načítaný přes @require.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -24,15 +24,15 @@
 // @grant        GM_setValue
 // @grant        GM_deleteValue
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/00-core.js?v=9.0.2
-// @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/01-styles.js?v=9.0.4
+// @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/01-styles.js?v=9.0.5
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/02-settings-ui.js?v=9.0.2
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/03-pulse.js?v=9.0.2
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/04-modul-json.js?v=9.0.6
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/05-modul-rizika.js?v=9.0.1
-// @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/06-modul-seznamy.js?v=9.0.4
+// @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/06-modul-seznamy.js?v=9.0.5
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/07-modul-radky.js?v=9.0.1
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/08-modul-zalozky.js?v=9.0.1
-// @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/09-modul-sidebar.js?v=9.0.4
+// @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/09-modul-sidebar.js?v=9.0.5
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/10-modul-checklist.js?v=9.0.2
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/11-modul-rozbalit.js?v=9.0.3
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/12-modul-checklist-urazy.js?v=1.0.1
@@ -66,11 +66,11 @@
         const C = RS.Config;
         RS.Modules.safeRun('JSON', () => M.Json && M.Json.toggle(C.json.enabled));
         RS.Modules.safeRun('Risks', () => M.Risks && M.Risks.update(C.risks));
+        RS.Modules.safeRun('Sidebar', () => M.Sidebar && M.Sidebar.toggle(C.sidebarToggle.enabled));
         RS.Modules.safeRun('Lists', () => M.Lists && M.Lists.toggle(C.hiddenItems.enabled));
         RS.Modules.safeRun('Rows', () => M.Rows && M.Rows.init());
         RS.Modules.safeRun('StickyHeaders', () => M.StickyHeaders && M.StickyHeaders.toggle(C.stickyHeaders.enabled));
         RS.Modules.safeRun('Tabs', () => M.Tabs && M.Tabs.toggle(C.tabHighlight.enabled));
-        RS.Modules.safeRun('Sidebar', () => M.Sidebar && M.Sidebar.toggle(C.sidebarToggle.enabled));
         RS.Modules.safeRun('Checklist', () => M.Checklist && M.Checklist.toggle(C.docChecklist.enabled));
         RS.Modules.safeRun('Unroll', () => M.Unroll && M.Unroll.init());
         RS.Modules.safeRun('UrazyChecklist', () => M.UrazyChecklist && M.UrazyChecklist.init());

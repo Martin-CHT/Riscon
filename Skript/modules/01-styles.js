@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Styly (globální CSS)
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      9.0.4
+// @version      9.0.5
 // @description  Globální CSS styly pro Riscon Suite. Součást Riscon Suite – lze nainstalovat samostatně nebo načíst přes @require.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -39,29 +39,50 @@
                 .apex-rds-item.cht-rds-highlight > a { background-color: #ffd95e !important; color: #000 !important; font-weight: bold; }
 
                 /* --- Postranní panel (Flexbox layout) --- */
+                body.riscon-sidebar-enabled {
+                    min-width: 0 !important;
+                    max-width: none !important;
+                    overflow-x: hidden;
+                    box-sizing: border-box;
+                }
+                body.riscon-sidebar-enabled #wwvFlowForm,
+                body.riscon-sidebar-enabled #body {
+                    min-width: 0 !important;
+                    width: 100% !important;
+                    max-width: 100vw !important;
+                    box-sizing: border-box;
+                    overflow-x: hidden;
+                }
                 body.riscon-sidebar-enabled table.tbl-body,
                 body.riscon-sidebar-enabled table.tbl-body > tbody {
                     display: block !important; width: 100% !important; max-width: 100vw !important;
                     box-sizing: border-box; margin: 0; padding: 0; overflow-x: hidden;
                 }
                 body.riscon-sidebar-enabled table.tbl-body > tbody > tr {
-                    display: flex !important; flex-wrap: nowrap; width: 100% !important; box-sizing: border-box;
+                    display: flex !important; flex-wrap: nowrap; width: 100% !important; max-width: 100vw !important; box-sizing: border-box;
                 }
                 body.riscon-sidebar-enabled td.tbl-main {
                     display: block !important;
-                    flex: 1 1 auto;
+                    flex: 1 1 0%;
                     min-width: 0;
-                    max-width: calc(100vw - 220px);
-                    width: calc(100vw - 220px);
+                    width: auto !important;
+                    max-width: none;
                     padding-right: 15px;
                     box-sizing: border-box;
-                    overflow-x: hidden;
+                    overflow-x: auto;
                 }
                 body.riscon-sidebar-enabled.sidebar-collapsed td.tbl-main {
+                    flex-basis: 100%;
+                    width: 100% !important;
                     max-width: 100vw;
-                    width: 100vw;
                 }
                 body.riscon-sidebar-enabled td.tbl-main > table,
+                body.riscon-sidebar-enabled td.tbl-main .rounded-corner-region,
+                body.riscon-sidebar-enabled td.tbl-main .rc-body,
+                body.riscon-sidebar-enabled td.tbl-main .rc-body-r,
+                body.riscon-sidebar-enabled td.tbl-main .rc-content-main,
+                body.riscon-sidebar-enabled td.tbl-main table.formlayout,
+                body.riscon-sidebar-enabled td.tbl-main table.shuttle,
                 body.riscon-sidebar-enabled td.tbl-main .t-Region,
                 body.riscon-sidebar-enabled td.tbl-main .t-Region-body,
                 body.riscon-sidebar-enabled td.tbl-main .a-IRR,
@@ -70,10 +91,23 @@
                     width: 100% !important;
                     box-sizing: border-box;
                 }
+                body.riscon-sidebar-enabled td.tbl-main .rounded-corner-region,
+                body.riscon-sidebar-enabled td.tbl-main .rc-body {
+                    float: none !important;
+                    overflow: visible;
+                }
+                body.riscon-sidebar-enabled td.tbl-main table.shuttle td {
+                    min-width: 0;
+                    box-sizing: border-box;
+                }
+                body.riscon-sidebar-enabled td.tbl-main .cht-list-resize-shell {
+                    max-width: 100% !important;
+                    box-sizing: border-box;
+                }
                 body.riscon-sidebar-enabled .a-IRR-tableContainer { overflow-x: auto !important; width: 100%; display: block; }
                 body.riscon-sidebar-enabled .a-IRR-table { width: 100% !important; min-width: 800px; }
                 body.riscon-sidebar-enabled td.tbl-sidebar {
-                    display: block !important; flex: 0 0 200px; width: 200px;
+                    display: block !important; flex: 0 0 200px; width: 200px; max-width: 200px; box-sizing: border-box;
                     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); overflow: hidden; opacity: 1;
                 }
                 body.riscon-sidebar-enabled.sidebar-collapsed td.tbl-sidebar {

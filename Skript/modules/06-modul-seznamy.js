@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Skrývání položek (Seznamy)
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      9.0.4
+// @version      9.0.5
 // @description  Skrývání položek v shuttle listboxech s podporou profilů. Součást Riscon Suite – lze nainstalovat samostatně nebo načíst přes @require.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -70,31 +70,28 @@
             });
             this.resizeExisting();
         },
-        resizeExisting: function () {
-            const leftSel = document.querySelector('select[id$="_LEFT"]');
-            if (!leftSel) return;
+        resizeExisting: function (skipTable) {
+            const leftSelects = Array.from(document.querySelectorAll('select[id$="_LEFT"]'));
+            if (leftSelects.length === 0) return;
 
-            const shuttleTable = leftSel.closest('table');
-            if (!shuttleTable) return;
+            leftSelects.forEach(leftSel => {
+                const shuttleTable = leftSel.closest('table');
+                if (!shuttleTable || shuttleTable === skipTable) return;
 
-            this.fitShuttleWidths({
-                shuttleTable: shuttleTable,
-                selects: [
-                    leftSel,
-                    shuttleTable.querySelector('select[id$="_RIGHT"]'),
-                    document.querySelector('#' + this.containerId + ' select[multiple]')
-                ].filter(Boolean)
+                this.fitShuttleWidths({
+                    shuttleTable: shuttleTable,
+                    selects: [
+                        leftSel,
+                        shuttleTable.querySelector('select[id$="_RIGHT"]'),
+                        shuttleTable.querySelector('#' + this.containerId + ' select[multiple]')
+                    ].filter(Boolean)
+                });
             });
         },
         fitShuttleWidths: function ({ shuttleTable, selects, manualWidths }) {
             if (!shuttleTable || !selects || selects.length === 0) return;
 
-            const viewportWidth = document.documentElement.clientWidth || window.innerWidth || 1024;
-            const tableLeft = Math.max(0, shuttleTable.getBoundingClientRect().left);
-            const availableWidth = Math.max(
-                this.minCompressedWidth * selects.length,
-                viewportWidth - tableLeft - this.viewportPadding
-            );
+            const availableWidth = this.getShuttleAvailableWidth(shuttleTable, selects.length);
             const fixedWidth = this.getFixedShuttleWidth(shuttleTable, selects);
             const maxSelectsWidth = Math.max(
                 this.minCompressedWidth * selects.length,
@@ -133,6 +130,31 @@
                 hiddenWrapper.style.width = hiddenSel.style.width;
                 hiddenWrapper.style.maxWidth = hiddenSel.style.width;
             }
+        },
+        getShuttleAvailableWidth: function (shuttleTable, selectCount) {
+            const viewportWidth = document.documentElement.clientWidth || window.innerWidth || 1024;
+            const tableRect = shuttleTable.getBoundingClientRect();
+            const tableLeft = Math.max(0, tableRect.left);
+            const minWidth = this.minCompressedWidth * selectCount;
+            const viewportAvailable = viewportWidth - tableLeft - this.viewportPadding;
+            const mainCell = shuttleTable.closest('td.tbl-main');
+            if (!mainCell) return Math.max(minWidth, viewportAvailable);
+
+            const mainRect = mainCell.getBoundingClientRect();
+            const mainStyle = window.getComputedStyle(mainCell);
+            const paddingRight = parseFloat(mainStyle.paddingRight) || 0;
+            let mainRight = mainRect.right - paddingRight;
+
+            if (document.body.classList.contains('riscon-sidebar-enabled') && !document.body.classList.contains('sidebar-collapsed')) {
+                const sidebar = document.querySelector('td.tbl-sidebar');
+                const sidebarRect = sidebar ? sidebar.getBoundingClientRect() : null;
+                if (sidebarRect && sidebarRect.width > 0 && sidebarRect.left > tableLeft) {
+                    mainRight = Math.min(mainRight, sidebarRect.left);
+                }
+            }
+
+            const mainAvailable = mainRight - tableLeft - this.viewportPadding;
+            return Math.max(minWidth, Math.min(viewportAvailable, mainAvailable));
         },
         getFixedShuttleWidth: function (shuttleTable, selects) {
             const selectCells = new Set(selects.map(sel => sel.closest('td')).filter(Boolean));
@@ -357,12 +379,21 @@
                 { select: sel, index: managedSelects.indexOf(sel), sides: ['left'] }
             ].filter(config => config.select && config.index >= 0), startManualResize);
             let resizeQueued = false;
+            let otherResizeQueued = false;
             const queueWidthSync = () => {
                 if (resizeQueued) return;
                 resizeQueued = true;
                 requestAnimationFrame(() => {
                     resizeQueued = false;
                     syncWidths();
+                });
+            };
+            const queueOtherWidthSync = () => {
+                if (otherResizeQueued) return;
+                otherResizeQueued = true;
+                requestAnimationFrame(() => {
+                    otherResizeQueued = false;
+                    this.resizeExisting(shuttleTable);
                 });
             };
             syncWidths = () => this.fitShuttleWidths({
@@ -379,7 +410,14 @@
                 s.addEventListener('change', queueWidthSync);
             });
             shuttleTable.addEventListener('click', () => setTimeout(queueWidthSync, 0), true);
-            window.addEventListener('resize', queueWidthSync);
+            window.addEventListener('resize', () => {
+                queueWidthSync();
+                queueOtherWidthSync();
+            });
+            window.addEventListener('riscon:sidebar-layout-change', () => {
+                queueWidthSync();
+                queueOtherWidthSync();
+            });
 
             const syncSel = () => { const s = new Set(currentHidden); Array.from(sel.options).forEach(o => o.selected = s.has(o.value)); };
 
@@ -389,7 +427,7 @@
             dom.del.onclick = (e) => { e.preventDefault(); if (pageData.activeProfile === 'default') return; delete pageData.profiles[pageData.activeProfile]; pageData.activeProfile = 'default'; currentHidden = pageData.profiles.default.slice(); rebuildProfs(); syncSel(); apply(); save(); };
             resetBtn.onclick = (e) => { e.preventDefault(); currentHidden = []; syncSel(); apply(); };
 
-            rebuildProfs(); syncSel(); apply(); queueWidthSync();
+            rebuildProfs(); syncSel(); apply(); queueWidthSync(); queueOtherWidthSync();
         }
     };
 

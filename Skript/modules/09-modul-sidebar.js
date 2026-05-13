@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Postranní panel (Sidebar Toggle)
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      9.0.4
+// @version      9.0.5
 // @description  Zmenšení / skrytí postranního panelu nenápadným tlačítkem. Součást Riscon Suite – lze nainstalovat samostatně nebo načíst přes @require.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -27,6 +27,11 @@
 
     RS.Modules.Sidebar = {
         containerId: 'sleek-toggle',
+        notifyLayoutChange: function () {
+            requestAnimationFrame(() => {
+                window.dispatchEvent(new CustomEvent('riscon:sidebar-layout-change'));
+            });
+        },
         toggle: function (enabled) {
             const btn = document.getElementById(this.containerId);
             if (enabled) {
@@ -41,6 +46,7 @@
                 document.body.classList.remove('riscon-print-layout');
                 if (btn) btn.style.display = 'none';
             }
+            this.notifyLayoutChange();
         },
         isPrintLayoutPage: function () {
             return !!document.querySelector('table.si_table');
@@ -88,6 +94,7 @@
                 if (this.disableOnPrintLayout()) return;
                 const isCollapsed = document.body.classList.toggle('sidebar-collapsed');
                 localStorage.setItem(STORAGE_KEY, isCollapsed);
+                this.notifyLayoutChange();
             });
         }
     };
