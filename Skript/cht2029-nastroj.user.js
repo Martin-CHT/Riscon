@@ -23,7 +23,11 @@
     'use strict';
 
     // ── Detekce stránky ────────────────────────────────────────────────────────
+<<<<<<< HEAD
     const ON_3191 = /[?&]p=110:3191:/i.test(location.href) || /f\?p=110:3191:/i.test(location.href);
+=======
+    const ON_3191  = /[?&]p=110:3191:/i.test(location.href)  || /f\?p=110:3191:/i.test(location.href);
+>>>>>>> 6b5339cbb2eb8b5473d11da305e2a295067a59aa
     const ON_10300 = /[?&]p=110:10300:/i.test(location.href) || /f\?p=110:10300:/i.test(location.href);
     if (!ON_3191 && !ON_10300) return;
 
@@ -87,7 +91,11 @@
                     code = m[0].trim().replace(/\s+/g, '_'); // normalizuj mezeru → podtržítko
                     // Popis hledáme v DALŠÍ buňce; pokud neexistuje, vezmeme zbytek buňky s kódem
                     desc = (cells[i + 1] !== undefined ? cells[i + 1]
+<<<<<<< HEAD
                         : cells[i].replace(m[0], '')).trim();
+=======
+                           : cells[i].replace(m[0], '')).trim();
+>>>>>>> 6b5339cbb2eb8b5473d11da305e2a295067a59aa
                     break;
                 }
             }
@@ -124,9 +132,15 @@
     // AR_43120.01 → ["43120","01"], AR 42120_03.04 → ["42120","03","04"]
     function arSegments(code) {
         return code.toUpperCase()
+<<<<<<< HEAD
             .replace(/^AR[\s_\-]*/i, '')
             .split(/[\s_\-\.]+/)
             .filter(Boolean);
+=======
+                   .replace(/^AR[\s_\-]*/i, '')
+                   .split(/[\s_\-\.]+/)
+                   .filter(Boolean);
+>>>>>>> 6b5339cbb2eb8b5473d11da305e2a295067a59aa
     }
 
     // Sestaví regex, který matchuje AR kód v textu option bez ohledu na konkrétní oddělovač
@@ -137,11 +151,19 @@
     }
 
     function moveProfilesToRight(arItems) {
+<<<<<<< HEAD
         const leftSel = document.getElementById('P3191_PROFILE_IDS_LEFT');
         const rightSel = document.getElementById('P3191_PROFILE_IDS_RIGHT');
         if (!leftSel || !rightSel) return { moved: [], notFound: arItems.map(i => i.code) };
 
         const moved = [];
+=======
+        const leftSel  = document.getElementById('P3191_PROFILE_IDS_LEFT');
+        const rightSel = document.getElementById('P3191_PROFILE_IDS_RIGHT');
+        if (!leftSel || !rightSel) return { moved: [], notFound: arItems.map(i => i.code) };
+
+        const moved    = [];
+>>>>>>> 6b5339cbb2eb8b5473d11da305e2a295067a59aa
         const notFound = [];
 
         arItems.forEach(item => {
@@ -240,10 +262,17 @@
 
         document.body.appendChild(panel);
 
+<<<<<<< HEAD
         document.getElementById('cht2029-close').onclick = () => panel.remove();
         document.getElementById('cht2029-open-btn').onclick = () =>
             document.getElementById('cht2029-file').click();
         document.getElementById('cht2029-file').onchange = e => {
+=======
+        document.getElementById('cht2029-close').onclick   = () => panel.remove();
+        document.getElementById('cht2029-open-btn').onclick = () =>
+            document.getElementById('cht2029-file').click();
+        document.getElementById('cht2029-file').onchange   = e => {
+>>>>>>> 6b5339cbb2eb8b5473d11da305e2a295067a59aa
             if (e.target.files.length) handleFile(e.target.files[0]);
         };
     }
@@ -261,12 +290,20 @@
         try {
             const xml = await readDocxXml(file);
 
+<<<<<<< HEAD
             const arItems = extractCheckedAR(xml);
+=======
+            const arItems  = extractCheckedAR(xml);
+>>>>>>> 6b5339cbb2eb8b5473d11da305e2a295067a59aa
             const chtItems = extractCheckedCHT(xml);
 
             setStatus(`Nalezeno: ${arItems.length} AR profilů, ${chtItems.length} CHT dokumentů`);
 
+<<<<<<< HEAD
             if (ON_3191) showResults3191(arItems, body);
+=======
+            if (ON_3191)  showResults3191(arItems, body);
+>>>>>>> 6b5339cbb2eb8b5473d11da305e2a295067a59aa
             if (ON_10300) showResults10300(chtItems, body);
             if (body) body.style.display = 'block';
 
@@ -341,4 +378,8 @@
         buildPanel();
     }
 
+<<<<<<< HEAD
 })();
+=======
+})();
+>>>>>>> 6b5339cbb2eb8b5473d11da305e2a295067a59aa

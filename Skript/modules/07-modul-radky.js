@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Zvýraznění řádků
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      9.0.1
+// @version      9.0.2
 // @description  Zvýraznění řádků tabulky kliknutím. Součást Riscon Suite – lze nainstalovat samostatně nebo načíst přes @require.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -28,10 +28,74 @@
 
     RS.Modules.Rows = {
         initialized: false,
+        observer: null,
+        highlightColor: '#ffd95e',
+        originalBgFlag: 'chtRowHighlightOriginalBgSet',
+        originalBgValue: 'chtRowHighlightOriginalBg',
+        originalBgPriority: 'chtRowHighlightOriginalBgPriority',
+        isOwnHighlight: function (td) {
+            const value = (td.style.getPropertyValue('background-color') || '').trim().toLowerCase();
+            const priority = td.style.getPropertyPriority('background-color');
+            return priority === 'important' && (value === this.highlightColor || value === 'rgb(255, 217, 94)');
+        },
+        applyRowHighlight: function (tr) {
+            tr.classList.add('cht-row-highlight');
+            tr.querySelectorAll('td').forEach(td => {
+                const currentValue = td.style.getPropertyValue('background-color');
+                const currentPriority = td.style.getPropertyPriority('background-color');
+                if (!td.dataset[this.originalBgFlag] || !this.isOwnHighlight(td)) {
+                    td.dataset[this.originalBgFlag] = '1';
+                    td.dataset[this.originalBgValue] = currentValue || '';
+                    td.dataset[this.originalBgPriority] = currentPriority || '';
+                }
+                if (!this.isOwnHighlight(td)) {
+                    td.style.setProperty('background-color', this.highlightColor, 'important');
+                }
+            });
+        },
+        clearRowHighlight: function (tr) {
+            tr.classList.remove('cht-row-highlight');
+            tr.querySelectorAll('td').forEach(td => {
+                if (!td.dataset[this.originalBgFlag]) return;
+                const originalValue = td.dataset[this.originalBgValue] || '';
+                const originalPriority = td.dataset[this.originalBgPriority] || '';
+                if (originalValue) td.style.setProperty('background-color', originalValue, originalPriority);
+                else td.style.removeProperty('background-color');
+                delete td.dataset[this.originalBgFlag];
+                delete td.dataset[this.originalBgValue];
+                delete td.dataset[this.originalBgPriority];
+            });
+        },
+        observeExternalHighlights: function () {
+            if (this.observer) return;
+            const pending = new Set();
+            let queued = false;
+            const flush = () => {
+                queued = false;
+                pending.forEach(tr => {
+                    if (tr.isConnected && tr.classList.contains('cht-row-highlight')) this.applyRowHighlight(tr);
+                });
+                pending.clear();
+            };
+            this.observer = new MutationObserver(mutations => {
+                mutations.forEach(mutation => {
+                    const td = mutation.target;
+                    if (!td || td.tagName !== 'TD') return;
+                    const tr = td.closest('tr.cht-row-highlight');
+                    if (!tr || this.isOwnHighlight(td)) return;
+                    pending.add(tr);
+                });
+                if (pending.size > 0 && !queued) {
+                    queued = true;
+                    requestAnimationFrame(flush);
+                }
+            });
+            this.observer.observe(document.body, { subtree: true, attributes: true, attributeFilter: ['style'] });
+        },
         init: function () {
             const Config = RS.Config;
             if (Config && !Config.rowHighlight.enabled) {
-                document.querySelectorAll('tr.cht-row-highlight').forEach(tr => tr.classList.remove('cht-row-highlight'));
+                document.querySelectorAll('tr.cht-row-highlight').forEach(tr => this.clearRowHighlight(tr));
                 document.querySelectorAll('[id^="reset-"]').forEach(b => {
                     if (b.tagName === 'BUTTON' && b.textContent === 'Reset označení') b.remove();
                 });
@@ -40,6 +104,7 @@
 
             if (!this.initialized) {
                 this.initialized = true;
+                this.observeExternalHighlights();
                 document.body.addEventListener('click', (e) => {
                     if (Config && !Config.rowHighlight.enabled) return;
                     const tr = e.target.closest('table.a-IRR-table tr, table.t-Report-report tr, table.u-Report-table tr');
@@ -66,8 +131,8 @@
                     let selected = store[regionKey] || [];
 
                     const idxArr = selected.indexOf(key);
-                    if (idxArr > -1) { selected.splice(idxArr, 1); tr.classList.remove('cht-row-highlight'); }
-                    else { selected.push(key); tr.classList.add('cht-row-highlight'); }
+                    if (idxArr > -1) { selected.splice(idxArr, 1); this.clearRowHighlight(tr); }
+                    else { selected.push(key); this.applyRowHighlight(tr); }
 
                     store[regionKey] = selected;
                     GM_setValue(STORAGE_KEY, JSON.stringify(store));
@@ -98,9 +163,9 @@
                     let key = link ? link.href.match(/P\d+_ID:([^:&?]+)/)?.[1] : null;
                     if (!key) key = 'row_' + rIdx + '_' + tr.innerText.trim().slice(0, 30);
                     if (selected.includes(key)) {
-                        if (!tr.classList.contains('cht-row-highlight')) tr.classList.add('cht-row-highlight');
+                        this.applyRowHighlight(tr);
                     } else {
-                        if (tr.classList.contains('cht-row-highlight')) tr.classList.remove('cht-row-highlight');
+                        if (tr.classList.contains('cht-row-highlight')) this.clearRowHighlight(tr);
                     }
                 });
             });
