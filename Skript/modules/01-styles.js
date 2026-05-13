@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Styly (globální CSS)
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      9.0.5
+// @version      9.0.6
 // @description  Globální CSS styly pro Riscon Suite. Součást Riscon Suite – lze nainstalovat samostatně nebo načíst přes @require.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -107,8 +107,30 @@
                 body.riscon-sidebar-enabled .a-IRR-tableContainer { overflow-x: auto !important; width: 100%; display: block; }
                 body.riscon-sidebar-enabled .a-IRR-table { width: 100% !important; min-width: 800px; }
                 body.riscon-sidebar-enabled td.tbl-sidebar {
-                    display: block !important; flex: 0 0 200px; width: 200px; max-width: 200px; box-sizing: border-box;
-                    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); overflow: hidden; opacity: 1;
+                    display: block !important; flex: 0 0 220px; width: 220px; max-width: 220px; box-sizing: border-box;
+                    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); overflow: visible; opacity: 1;
+                }
+                body.riscon-sidebar-enabled td.tbl-sidebar .sidebar-region-alt {
+                    float: none !important;
+                    width: 210px !important;
+                    max-width: 100%;
+                    overflow: visible !important;
+                    box-sizing: border-box;
+                }
+                body.riscon-sidebar-enabled td.tbl-sidebar .sidebar-region-alt h3,
+                body.riscon-sidebar-enabled td.tbl-sidebar .sidebar-region-alt .box,
+                body.riscon-sidebar-enabled td.tbl-sidebar .sidebar-region-alt .box .frame {
+                    width: 100% !important;
+                    max-width: 100%;
+                    box-sizing: border-box;
+                }
+                body.riscon-sidebar-enabled td.tbl-sidebar .sidebar-region-alt .box .frame {
+                    overflow: visible !important;
+                }
+                body.riscon-sidebar-enabled td.tbl-sidebar .sidebar-region-alt .box .content {
+                    width: auto !important;
+                    max-width: none;
+                    overflow-wrap: break-word;
                 }
                 body.riscon-sidebar-enabled.sidebar-collapsed td.tbl-sidebar {
                     flex: 0 0 0px; width: 0px; opacity: 0; padding: 0 !important; margin: 0 !important; border: none !important;
