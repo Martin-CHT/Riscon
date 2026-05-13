@@ -1,12 +1,14 @@
 // ==UserScript==
 // @name         Riscon: Import z CHT 2029
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      1.1.0
+// @version      1.2.0
 // @description  Načte zaškrtnuté AR profily a CHT dokumenty z formuláře CHT 2029 a automaticky je vybere/označí v Riscon. Stránka 3191: přesouvá profily do výběru a vypíše 2-sloupcovou tabulku. Stránka 10300: zvýrazní příslušné dokumenty.
 // @author       Martin
 // @copyright    2025-2026, Martin
 // @license      Proprietary - internal use only
 // @homepageURL  https://github.com/Martin-CHT/Riscon
+// @updateURL    https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/cht2029-nastroj.user.js
+// @downloadURL  https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/cht2029-nastroj.user.js
 // @match        https://*/ords/*/f?p=110:3191:*
 // @match        https://*/ords/*/f?p=110:10300:*
 // @match        https://www.riscon.cz/go/f?p=110:3191:*
