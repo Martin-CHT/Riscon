@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Postranní panel (Sidebar Toggle)
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      9.0.3
+// @version      9.0.4
 // @description  Zmenšení / skrytí postranního panelu nenápadným tlačítkem. Součást Riscon Suite – lze nainstalovat samostatně nebo načíst přes @require.
 // @author       Martin
 // @copyright    2025-2026, Martin
