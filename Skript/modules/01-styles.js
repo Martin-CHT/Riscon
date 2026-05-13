@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Styly (globální CSS)
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      9.0.7
+// @version      9.0.8
 // @description  Globální CSS styly pro Riscon Suite. Součást Riscon Suite – lze nainstalovat samostatně nebo načíst přes @require.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -59,7 +59,7 @@
                     box-sizing: border-box; margin: 0; padding: 0; overflow-x: hidden;
                 }
                 body.riscon-sidebar-enabled table.tbl-body > tbody > tr {
-                    display: flex !important; flex-wrap: nowrap; width: 100% !important; max-width: 100vw !important; box-sizing: border-box;
+                    display: flex !important; flex-wrap: nowrap; column-gap: 2px; width: 100% !important; max-width: 100vw !important; box-sizing: border-box;
                 }
                 body.riscon-sidebar-enabled td.tbl-main {
                     display: block !important;
@@ -67,7 +67,8 @@
                     min-width: 0;
                     width: auto !important;
                     max-width: none;
-                    padding-right: 7px !important;
+                    padding-left: 0 !important;
+                    padding-right: 0 !important;
                     box-sizing: border-box;
                     overflow-x: auto;
                 }
@@ -107,10 +108,15 @@
                 body.riscon-sidebar-enabled .a-IRR-tableContainer { overflow-x: auto !important; width: 100%; display: block; }
                 body.riscon-sidebar-enabled .a-IRR-table { width: 100% !important; min-width: 800px; }
                 body.riscon-sidebar-enabled td.tbl-sidebar {
-                    display: block !important; flex: 0 0 228px; width: 228px; max-width: 228px; box-sizing: border-box;
-                    padding-left: 2px !important; padding-right: 4px !important;
+                    display: block !important; flex: 0 0 200px; width: 200px; max-width: 200px; box-sizing: border-box;
+                    padding-left: 0 !important; padding-right: 0 !important;
                     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); overflow: visible; opacity: 1;
                 }
+                body.riscon-sidebar-enabled td.tbl-sidebar > * {
+                    max-width: 100%;
+                    box-sizing: border-box;
+                }
+                body.riscon-sidebar-enabled td.tbl-sidebar .sidebar-region,
                 body.riscon-sidebar-enabled td.tbl-sidebar .sidebar-region-alt {
                     display: block !important;
                     float: none !important;
@@ -119,6 +125,9 @@
                     overflow: visible !important;
                     box-sizing: border-box;
                 }
+                body.riscon-sidebar-enabled td.tbl-sidebar .sidebar-region h3,
+                body.riscon-sidebar-enabled td.tbl-sidebar .sidebar-region .box,
+                body.riscon-sidebar-enabled td.tbl-sidebar .sidebar-region .box .frame,
                 body.riscon-sidebar-enabled td.tbl-sidebar .sidebar-region-alt h3,
                 body.riscon-sidebar-enabled td.tbl-sidebar .sidebar-region-alt .box,
                 body.riscon-sidebar-enabled td.tbl-sidebar .sidebar-region-alt .box .frame {
@@ -126,9 +135,11 @@
                     max-width: 100%;
                     box-sizing: border-box;
                 }
+                body.riscon-sidebar-enabled td.tbl-sidebar .sidebar-region .box .frame,
                 body.riscon-sidebar-enabled td.tbl-sidebar .sidebar-region-alt .box .frame {
                     overflow: visible !important;
                 }
+                body.riscon-sidebar-enabled td.tbl-sidebar .sidebar-region .box .content,
                 body.riscon-sidebar-enabled td.tbl-sidebar .sidebar-region-alt .box .content {
                     width: auto !important;
                     max-width: none;
