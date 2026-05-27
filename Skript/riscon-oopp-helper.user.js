@@ -32,7 +32,7 @@
     //  KONFIGURACE
     // =========================================================================
     const CONFIG = {
-        LOGO_URL: 'https://raw.githubusercontent.com/Martin-CHT/Riscon/refs/heads/main/Skript/logoOOPP.png',
+        LOGO_URL: 'https://raw.githubusercontent.com/Martin-CHT/Riscon/refs/heads/main/Skript/logo-OOPP.png',
         COLORS: {
             primary:    '#004C66',   // tmavě modrá (Riscon branding)
             success:    '#28a745',   // zelená pro zvýraznění
