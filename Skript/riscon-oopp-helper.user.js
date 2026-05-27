@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: OOPP Průvodce výdejem
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      1.2.3
+// @version      1.2.4
 // @description  Pracovní prostředí pro výdej osobních ochranných pracovních prostředků (OOPP).
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -11,8 +11,8 @@
 // @updateURL    https://raw.githubusercontent.com/Martin-CHT/Riscon/main/Skript/riscon-oopp-helper.user.js
 // @downloadURL  https://raw.githubusercontent.com/Martin-CHT/Riscon/main/Skript/riscon-oopp-helper.user.js
 // @supportURL   https://github.com/Martin-CHT/Riscon/issues
-// @icon         https://raw.githubusercontent.com/Martin-CHT/Riscon/refs/heads/main/Skript/logoOOPP.png
-// @icon64       https://raw.githubusercontent.com/Martin-CHT/Riscon/refs/heads/main/Skript/logoOOPP.png
+// @icon         https://raw.githubusercontent.com/Martin-CHT/Riscon/refs/heads/main/Skript/logo-OOPP.png
+// @icon64       https://raw.githubusercontent.com/Martin-CHT/Riscon/refs/heads/main/Skript/logo-OOPP.png
 // @match        https://*/ords/*/f?p=110:*
 // @match        https://www.riscon.cz/go/f?p=110*
 // @match        https://www.riscon.cz/*
