@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Sdružené skripty
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      9.1.13
+// @version      9.1.14
 // @description  Sdružený balík nástrojů pro Riscon. Modulární verze – každý modul je samostatný soubor načítaný přes @require.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -35,8 +35,8 @@
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/09-modul-sidebar.js?v=9.0.5
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/10-modul-checklist.js?v=9.0.2
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/11-modul-rozbalit.js?v=9.0.3
-// @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/12-modul-checklist-urazy.js?v=1.0.1
-// @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/13-modul-autofill-urazy.js?v=9.0.1
+// @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/12-modul-checklist-urazy.js?v=1.0.2
+// @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/13-modul-autofill-urazy.js?v=9.0.2
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/14-modul-pripnute-zahlavi.js?v=9.0.3
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/15-modul-auto-id-sekvence.js?v=5.4.3
 // ==/UserScript==
