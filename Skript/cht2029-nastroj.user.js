@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Import z CHT 2029
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      2.2.1
+// @version      2.6.0
 // @description  Načte zaškrtnuté AR profily a CHT dokumenty z formuláře CHT 2029 (.xlsx) a automaticky je vybere/označí v Riscon. Stránka 3191: přesouvá profily do výběru a vypíše 2-sloupcovou tabulku. Stránka 10300: zvýrazní příslušné dokumenty.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -296,22 +296,38 @@
         return { moved, notFound };
     }
 
-    // ── Tabulka pro Excel (oddělovač = tabulátor) ──────────────────────────────
-    function itemLabel(item) {
-        return item.desc ? `${item.desc} ${item.code}` : item.code;
-    }
-
-    function buildExcelTable(items) {
+    // ── Tabulka pro Word (kopírováno jako HTML) ────────────
+    function buildWordTableHtml(items) {
         const half = Math.ceil(items.length / 2);
         const col1 = items.slice(0, half);
         const col2 = items.slice(half);
-        const rows = [];
+        // Bez ohraničení a paddingu, aby Word zdědil styl z cílové tabulky
+        let html = '<table id="cht2029-word-tbl" style="width:100%;border-collapse:collapse;"><tbody>';
         for (let i = 0; i < half; i++) {
-            const l = col1[i] ? itemLabel(col1[i]) : '';
-            const r = col2[i] ? itemLabel(col2[i]) : '';
-            rows.push(l + '\t' + r);
+            const l_desc = col1[i] ? col1[i].desc || '' : '';
+            const l_code = col1[i] ? col1[i].code || '' : '';
+            const r_desc = col2[i] ? col2[i].desc || '' : '';
+            const r_code = col2[i] ? col2[i].code || '' : '';
+
+            // ☒ = zaškrtnuto (&#9746;), ☐ = prázdné (&#9744;)
+            // Vynutíme velikost písma přes <span>, aby ji Word nepřepsal stylem cílové tabulky
+            const cbChecked = '<span style="font-family:Arial,sans-serif;font-size:16pt;">&#9746;</span>';
+            const cbUnchecked = '<span style="font-family:Arial,sans-serif;font-size:16pt;">&#9744;</span>';
+
+            const l_cell = col1[i] 
+                ? `${cbChecked} <span style="font-family:Arial,sans-serif;font-size:11pt;">${l_desc}<br><span style="mso-tab-count:1;white-space:pre;">&#9;</span>${l_code}</span>` 
+                : cbUnchecked;
+            const r_cell = col2[i] 
+                ? `${cbChecked} <span style="font-family:Arial,sans-serif;font-size:11pt;">${r_desc}<br><span style="mso-tab-count:1;white-space:pre;">&#9;</span>${r_code}</span>` 
+                : cbUnchecked;
+
+            html += `<tr>
+<td style="vertical-align:top;width:50%;">${l_cell}</td>
+<td style="vertical-align:top;width:50%;">${r_cell}</td>
+</tr>`;
         }
-        return rows.join('\n');
+        html += '</tbody></table>';
+        return html;
     }
 
     // ── Zvýraznění CHT dokumentů na stránce 10300 ─────────────────────────────
@@ -428,7 +444,7 @@
     function showResults3191(arItems, body) {
         if (!body) return;
         const { moved, notFound } = moveProfilesToRight(arItems);
-        const tableText = buildExcelTable(arItems);
+        const tableHtml = buildWordTableHtml(arItems);
 
         let html = '';
         if (moved.length) {
@@ -442,28 +458,34 @@
             </div>`;
         }
 
-        html += `<div style="font-weight:bold;margin-bottom:4px;">Tabulka pro Excel:</div>
-<textarea id="cht2029-tbl" style="
-  width:100%;height:120px;font-family:monospace;font-size:9.5px;
-  box-sizing:border-box;resize:vertical;border:1px solid #ccc;
-  border-radius:4px;padding:4px;" readonly>${tableText}</textarea>
+        html += `<div style="font-weight:bold;margin-bottom:4px;">Tabulka pro Word:</div>
+<div id="cht2029-tbl-container" style="
+  width:100%;height:140px;overflow-y:auto;background:#f9f9f9;
+  border:1px solid #ccc;border-radius:4px;padding:4px;">
+  ${tableHtml}
+</div>
 <button id="cht2029-copy"
   style="width:100%;margin-top:5px;padding:5px 0;background:#28a745;color:#fff;
          border:none;border-radius:4px;cursor:pointer;font-size:12px;font-family:inherit;">
-  Kopírovat tabulku (Ctrl+C)
+  Kopírovat pro Word (HTML)
 </button>`;
 
         body.innerHTML = html;
 
         document.getElementById('cht2029-copy').onclick = function () {
-            const ta = document.getElementById('cht2029-tbl');
-            ta.select();
+            const tbl = document.getElementById('cht2029-word-tbl');
+            const range = document.createRange();
+            range.selectNodeContents(tbl);
+            const sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(range);
             try {
-                navigator.clipboard.writeText(ta.value).then(() => flash(this));
-            } catch (_) {
                 document.execCommand('copy');
                 flash(this);
+            } catch (err) {
+                console.error('Kopírování selhalo', err);
             }
+            sel.removeAllRanges();
         };
 
         function flash(btn) {
