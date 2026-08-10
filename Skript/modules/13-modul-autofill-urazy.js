@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Autofill Úrazy
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      9.0.1
+// @version      9.0.2
 // @description  Modul pro automatické vyplňování formuláře úrazů (vkládá tlačítko Vyplnit). Součást Riscon Suite – lze nainstalovat samostatně nebo načíst přes @require.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -140,6 +140,13 @@
 
             // Provedeme synchronizaci při kliknutí na tlačítko Vyplnit
             syncShiftTime();
+
+            // --- Číselné pole ---
+            setVal('P6501_INJURED_TOTAL', '1');
+
+            // --- Checkboxy ---
+            setChk('P6501_CZ_WAS_REGULAR_EMPLOYEE_0', true);
+            setChk('P6501_CZ_CAUSE6_0', true);
 
             // --- Textová pole ---
             setVal('P6501_SAFETY_REP', 'Andrea Routnerová');

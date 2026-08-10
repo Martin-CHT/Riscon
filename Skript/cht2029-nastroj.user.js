@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Riscon: Import z CHT 2029
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      1.2.0
-// @description  Načte zaškrtnuté AR profily a CHT dokumenty z formuláře CHT 2029 a automaticky je vybere/označí v Riscon. Stránka 3191: přesouvá profily do výběru a vypíše 2-sloupcovou tabulku. Stránka 10300: zvýrazní příslušné dokumenty.
+// @version      2.6.0
+// @description  Načte zaškrtnuté AR profily a CHT dokumenty z formuláře CHT 2029 (.xlsx) a automaticky je vybere/označí v Riscon. Stránka 3191: přesouvá profily do výběru a vypíše 2-sloupcovou tabulku. Stránka 10300: zvýrazní příslušné dokumenty.
 // @author       Martin
 // @copyright    2025-2026, Martin
 // @license      Proprietary - internal use only
@@ -22,128 +22,248 @@
 (function () {
     'use strict';
 
-    // ── Detekce stránky ────────────────────────────────────────────────────────
-<<<<<<< HEAD
-    const ON_3191 = /[?&]p=110:3191:/i.test(location.href) || /f\?p=110:3191:/i.test(location.href);
-=======
-    const ON_3191  = /[?&]p=110:3191:/i.test(location.href)  || /f\?p=110:3191:/i.test(location.href);
->>>>>>> 6b5339cbb2eb8b5473d11da305e2a295067a59aa
+    // ── Detekce stránky ─────────────────────────────────────────────────────────
+    const ON_3191  = /[?&]p=110:3191:/i.test(location.href) || /f\?p=110:3191:/i.test(location.href);
     const ON_10300 = /[?&]p=110:10300:/i.test(location.href) || /f\?p=110:10300:/i.test(location.href);
     if (!ON_3191 && !ON_10300) return;
 
-    // ── Konstanty ──────────────────────────────────────────────────────────────
-    const CHECKBOX_CHECKED = 'w:default w:val="1"';
-
-    // AR kódy mají různé formáty: AR_4120, AR_43120.01, AR_42120_07.1,
-    // AR 42120_03.04 (mezera), AR_2800-14, AR_68320_01 …
-    // Pattern zachytí "AR" + oddělovač + číslo + libovolný počet (oddělovač+číslo)
+    // ── Konstanty ───────────────────────────────────────────────────────────────
+    // AR kódy: AR_4120, AR_43120.01, AR_42120_07.1, AR 42120_03.04, AR_2800-14 …
     const AR_RE = /AR[\s_\-]\d+(?:[_\-\.]\d+)*/g;
 
-    // CHT kódy: "CHT 2021", "CHT2003" – hodnoty mohou být rozděleny do více runů
-    // takže pattern testujeme až po extrakci textu buňky, ne na raw XML
-    const CHT_RE = /CHT\s*(\d{4})/;
+    // CHT kódy: "CHT 2021", "CHT2003", "CHT 2004 A"
+    const CHT_RE = /CHT\s*(\d{4})(?:\s*([A-Za-z]))?/;
 
-    // ── Extrakce textu buněk z XML ─────────────────────────────────────────────
-    // DŮLEŽITÉ: testy pattern provádíme vždy na extrahovaném textu, NIKDY na raw XML,
-    // protože Word může rozdělit jeden řetězec do více <w:r> runů.
+    // Hranice řádků v XLSX
+    const DOC_ROW_MIN  = 36;   // Dokumenty: řádky 36–80 (stránka 10300)
+    const DOC_ROW_MAX  = 80;
+    const PROF_ROW_MIN = 86;   // Profily: řádky 86–666 (stránka 3191)
+    const PROF_ROW_MAX = 666;
 
-    function cellTexts(rowXml) {
-        const cells = [];
-        const cellRe = /<w:tc>[\s\S]*?<\/w:tc>/g;
-        let cm;
-        while ((cm = cellRe.exec(rowXml)) !== null) {
-            const tRe = /<w:t(?:\s[^>]*)?>([^<]*)<\/w:t>/g;
-            const parts = [];
-            let tm;
-            while ((tm = tRe.exec(cm[0])) !== null) parts.push(tm[1]);
-            cells.push(parts.join('').replace(/\s+/g, ' ').trim());
+    // ── Parsování XLSX ──────────────────────────────────────────────────────────
+
+    /**
+     * Parsuje sharedStrings.xml → pole řetězců (indexované od 0).
+     * Podporuje jednoduché <t> i rich-text <r><t>…</t></r>.
+     */
+    function parseSharedStrings(xml) {
+        if (!xml) return [];
+        const strings = [];
+        const siRe = /<si>([\s\S]*?)<\/si>/g;
+        let m;
+        while ((m = siRe.exec(xml)) !== null) {
+            const tRe = /<t[^>]*>([^<]*)<\/t>/g;
+            let tm, text = '';
+            while ((tm = tRe.exec(m[1])) !== null) {
+                text += tm[1];
+            }
+            strings.push(text);
         }
-        return cells;
+        return strings;
     }
 
-    // ── Parsování DOCX ─────────────────────────────────────────────────────────
-    async function readDocxXml(file) {
+    /**
+     * Parsuje sheet1.xml → Map(rowNumber → { B: '…', C: '…', D: '…', E: '…' }).
+     * Čte pouze řádky v rozsahu dokumentů a profilů.
+     */
+    function parseSheetRows(xml, strings) {
+        const rows = new Map();
+        const rowRe = /<row\s+r="(\d+)"[^>]*>([\s\S]*?)<\/row>/g;
+        let rm;
+        while ((rm = rowRe.exec(xml)) !== null) {
+            const rowNum = parseInt(rm[1]);
+            if ((rowNum < DOC_ROW_MIN || rowNum > DOC_ROW_MAX) &&
+                (rowNum < PROF_ROW_MIN || rowNum > PROF_ROW_MAX)) continue;
+
+            const cells = {};
+            const content = rm[2];
+            let pos = 0;
+
+            while (true) {
+                // Najdi další <c element
+                const cellStart = content.indexOf('<c ', pos);
+                if (cellStart === -1) break;
+
+                // Najdi konec elementu: buď /> (samouzavírací) nebo ></c> (s obsahem)
+                const selfClose = content.indexOf('/>', cellStart);
+                const tagEnd    = content.indexOf('>', cellStart);
+                let cellEnd, inner = '';
+
+                if (tagEnd === -1) break;
+
+                if (selfClose !== -1 && selfClose < tagEnd) {
+                    // Samouzavírací: <c ... />
+                    cellEnd = selfClose + 2;
+                } else {
+                    // S obsahem: <c ...>...</c>
+                    const contentClose = content.indexOf('</c>', tagEnd);
+                    if (contentClose === -1) break;
+                    inner = content.substring(tagEnd + 1, contentClose);
+                    cellEnd = contentClose + 4;
+                }
+
+                const tag = content.substring(cellStart, cellEnd);
+
+                // Extrahuj sloupec z r="X##"
+                const rMatch = /r="([A-Z]+)\d+"/.exec(tag);
+                if (!rMatch) { pos = cellEnd; continue; }
+                const col = rMatch[1];
+
+                // Extrahuj hodnotu
+                const vMatch = /<v>([^<]*)<\/v>/.exec(inner);
+                if (!vMatch) { pos = cellEnd; continue; }
+
+                if (tag.includes(' t="s"')) {
+                    const idx = parseInt(vMatch[1]);
+                    cells[col] = (strings[idx] !== undefined) ? strings[idx] : '';
+                } else if (tag.includes(' t="inlineStr"')) {
+                    const isMatch = /<t[^>]*>([^<]*)<\/t>/.exec(inner);
+                    cells[col] = isMatch ? isMatch[1] : '';
+                } else {
+                    cells[col] = vMatch[1];
+                }
+
+                pos = cellEnd;
+            }
+
+            rows.set(rowNum, cells);
+        }
+        return rows;
+    }
+
+    /**
+     * Parsuje sekci <controls> v sheet1.xml → pole { ctrlPropNum, col, row }.
+     * Každý <control> element obsahuje shapeId, r:id (→ ctrlProp číslo)
+     * a <anchor> s pozicí (sloupec, řádek).
+     *
+     * Formát: <control shapeId="1027" r:id="rId4" …>
+     *           <controlPr …><anchor …>
+     *             <from><xdr:col>7</xdr:col><xdr:row>35</xdr:row>…</from>
+     *           </anchor></controlPr>
+     *         </control>
+     *
+     * rId→ctrlProp: rId4→ctrlProp1, rId5→ctrlProp2 (offset = 3)
+     * row je 0-indexed → Excel řádek = row + 1
+     */
+    function parseSheetControls(sheetXml) {
+        const controls = [];
+        const ctrlRe = /<control\s+shapeId="\d+"\s+r:id="rId(\d+)"[\s\S]*?<xdr:col>(\d+)<\/xdr:col>[\s\S]*?<xdr:row>(\d+)<\/xdr:row>[\s\S]*?<\/control>/g;
+        let m;
+        while ((m = ctrlRe.exec(sheetXml)) !== null) {
+            const rId = parseInt(m[1]);
+            controls.push({
+                ctrlPropNum: rId - 3,       // rId4→1, rId5→2 …
+                col:         parseInt(m[2]), // 1 = sloupec B, 7 = sloupec H
+                row:         parseInt(m[3]) + 1  // 0-indexed → 1-indexed
+            });
+        }
+        return controls;
+    }
+
+    /**
+     * Hlavní funkce: rozbalí XLSX, přečte zaškrtnuté checkboxy a vrátí AR/CHT položky.
+     * @returns {{ arItems: {code,desc}[], chtItems: {code,label}[] }}
+     */
+    async function readXlsxData(file) {
         const buf = await file.arrayBuffer();
         const zip = await JSZip.loadAsync(buf);
-        return zip.file('word/document.xml').async('text');
-    }
 
-    // Vrátí pole { code, desc } pro všechny zaškrtnuté AR řádky
-    function extractCheckedAR(xml) {
-        const items = [];
-        const rowRe = /<w:tr[ >][\s\S]*?<\/w:tr>/g;
-        let rm;
-        while ((rm = rowRe.exec(xml)) !== null) {
-            const row = rm[0];
+        // 1. Tabulka sdílených řetězců
+        const ssFile = zip.file('xl/sharedStrings.xml');
+        const strings = ssFile ? parseSharedStrings(await ssFile.async('text')) : [];
+        console.log('[CHT2029] Sdílených řetězců:', strings.length);
 
-            // Musí mít zaškrtnutý checkbox
-            if (!row.includes(CHECKBOX_CHECKED)) continue;
+        // 2. Data buněk + kontrolní prvky (obojí ze sheet1.xml)
+        const sheetFile = zip.file('xl/worksheets/sheet1.xml');
+        if (!sheetFile) throw new Error('Soubor neobsahuje worksheet (xl/worksheets/sheet1.xml).');
+        const sheetXml = await sheetFile.async('text');
 
-            // Extrahuj text buněk (teprve pak hledej AR kód)
-            const cells = cellTexts(row);
+        const rows = parseSheetRows(sheetXml, strings);
+        console.log('[CHT2029] Načtených řádků:', rows.size);
 
-            // Hledej AR kód v textu každé buňky
-            let code = null, desc = '';
-            for (let i = 0; i < cells.length; i++) {
+        const allControls = parseSheetControls(sheetXml);
+        console.log('[CHT2029] Kontrol celkem:', allControls.length);
+
+        // 3. Filtrujeme: jen sloupec B v cílových rozsazích řádků
+        const relevantControls = allControls.filter(c =>
+            c.col === 1 &&
+            ((c.row >= DOC_ROW_MIN && c.row <= DOC_ROW_MAX) ||
+             (c.row >= PROF_ROW_MIN && c.row <= PROF_ROW_MAX))
+        );
+        console.log('[CHT2029] Relevantních checkboxů (sl. B):', relevantControls.length);
+
+        // 4. Čteme relevantní ctrlProp soubory a hledáme checked="Checked"
+        const checkedRows = new Set();
+        const checkPromises = relevantControls.map(ctrl => {
+            const ctrlFile = zip.file('xl/ctrlProps/ctrlProp' + ctrl.ctrlPropNum + '.xml');
+            if (!ctrlFile) return Promise.resolve();
+            return ctrlFile.async('text').then(content => {
+                if (content.includes('checked="Checked"')) {
+                    checkedRows.add(ctrl.row);
+                }
+            });
+        });
+        await Promise.all(checkPromises);
+        console.log('[CHT2029] Zaškrtnutých řádků:', checkedRows.size, [...checkedRows].sort((a, b) => a - b));
+
+        // 5. Extrakce AR profilů a CHT dokumentů ze zaškrtnutých řádků
+        const arItems  = [];
+        const chtItems = [];
+        const seenArCodes  = new Set(); // Deduplikace AR profilů
+        const seenChtCodes = new Set(); // Deduplikace CHT dokumentů
+
+        for (const rowNum of checkedRows) {
+            const row = rows.get(rowNum);
+            if (!row) continue;
+
+            if (rowNum >= PROF_ROW_MIN && rowNum <= PROF_ROW_MAX) {
+                // Profil: čteme sloupec D (AR kód)
+                const cellD = (row['D'] || '').trim();
+                if (!cellD) continue;
                 AR_RE.lastIndex = 0;
-                const m = AR_RE.exec(cells[i]);
+                const m = AR_RE.exec(cellD);
+                const code = m ? m[0].trim().replace(/\s+/g, '_') : cellD;
+                // Deduplikace: stejný kód přeskočíme
+                if (seenArCodes.has(code)) continue;
+                seenArCodes.add(code);
+                const desc = (row['E'] || '').trim();
+                arItems.push({ code, desc });
+            } else if (rowNum >= DOC_ROW_MIN && rowNum <= DOC_ROW_MAX) {
+                // Dokument: čteme sloupec C (název/kód dokumentu)
+                const cellC = (row['C'] || '').trim();
+                if (!cellC) continue;
+
+                const m = CHT_RE.exec(cellC);
                 if (m) {
-                    code = m[0].trim().replace(/\s+/g, '_'); // normalizuj mezeru → podtržítko
-                    // Popis hledáme v DALŠÍ buňce; pokud neexistuje, vezmeme zbytek buňky s kódem
-                    desc = (cells[i + 1] !== undefined ? cells[i + 1]
-<<<<<<< HEAD
-                        : cells[i].replace(m[0], '')).trim();
-=======
-                           : cells[i].replace(m[0], '')).trim();
->>>>>>> 6b5339cbb2eb8b5473d11da305e2a295067a59aa
-                    break;
+                    // Máme CHT kód (např. "CHT 2005" nebo "CHT 2004 A")
+                    const code = 'CHT ' + m[1] + (m[2] ? ' ' + m[2].toUpperCase() : '');
+                    if (seenChtCodes.has(code)) continue;
+                    seenChtCodes.add(code);
+                    chtItems.push({ code, label: cellC });
+                } else {
+                    // Fallback: dokument bez CHT kódu (např. "Plán BOZP") → hledáme textově
+                    if (seenChtCodes.has(cellC)) continue;
+                    seenChtCodes.add(cellC);
+                    chtItems.push({ code: cellC, label: cellC });
                 }
             }
-            if (!code) continue;
-            items.push({ code, desc });
         }
-        return items;
-    }
 
-    // Vrátí pole { code } pro všechny zaškrtnuté CHT řádky
-    function extractCheckedCHT(xml) {
-        const items = [];
-        const rowRe = /<w:tr[ >][\s\S]*?<\/w:tr>/g;
-        let rm;
-        while ((rm = rowRe.exec(xml)) !== null) {
-            const row = rm[0];
-            if (!row.includes(CHECKBOX_CHECKED)) continue;
+        console.log('[CHT2029] AR profilů:', arItems.length, arItems.map(i => i.code));
+        console.log('[CHT2029] CHT dokumentů:', chtItems.length, chtItems.map(i => i.code));
 
-            // Extrahuj text buněk (run spliting!)
-            const cells = cellTexts(row);
-            const fullText = cells.join(' ');
-
-            const m = CHT_RE.exec(fullText);
-            if (!m) continue;
-
-            items.push({ code: 'CHT ' + m[1], label: fullText.trim() });
-        }
-        return items;
+        return { arItems, chtItems };
     }
 
     // ── Shuttle – přesun profilů na stránce 3191 ──────────────────────────────
 
-    // Normalizace AR kódu: oddělí "AR" prefix a čísla, oddělí veškeré separátory
-    // AR_43120.01 → ["43120","01"], AR 42120_03.04 → ["42120","03","04"]
     function arSegments(code) {
         return code.toUpperCase()
-<<<<<<< HEAD
             .replace(/^AR[\s_\-]*/i, '')
             .split(/[\s_\-\.]+/)
             .filter(Boolean);
-=======
-                   .replace(/^AR[\s_\-]*/i, '')
-                   .split(/[\s_\-\.]+/)
-                   .filter(Boolean);
->>>>>>> 6b5339cbb2eb8b5473d11da305e2a295067a59aa
     }
 
-    // Sestaví regex, který matchuje AR kód v textu option bez ohledu na konkrétní oddělovač
     function makeArRe(code) {
         const segs = arSegments(code);
         const body = segs.join('[\\s_\\-\\.]+');
@@ -151,19 +271,11 @@
     }
 
     function moveProfilesToRight(arItems) {
-<<<<<<< HEAD
-        const leftSel = document.getElementById('P3191_PROFILE_IDS_LEFT');
-        const rightSel = document.getElementById('P3191_PROFILE_IDS_RIGHT');
-        if (!leftSel || !rightSel) return { moved: [], notFound: arItems.map(i => i.code) };
-
-        const moved = [];
-=======
         const leftSel  = document.getElementById('P3191_PROFILE_IDS_LEFT');
         const rightSel = document.getElementById('P3191_PROFILE_IDS_RIGHT');
         if (!leftSel || !rightSel) return { moved: [], notFound: arItems.map(i => i.code) };
 
         const moved    = [];
->>>>>>> 6b5339cbb2eb8b5473d11da305e2a295067a59aa
         const notFound = [];
 
         arItems.forEach(item => {
@@ -173,11 +285,10 @@
                 notFound.push(item.code);
                 return;
             }
-            toMove.forEach(opt => rightSel.appendChild(opt)); // přesune DOM uzel
+            toMove.forEach(opt => rightSel.appendChild(opt));
             moved.push(item.code);
         });
 
-        // Notifikuj APEX o změně
         ['change', 'input'].forEach(ev =>
             rightSel.dispatchEvent(new Event(ev, { bubbles: true }))
         );
@@ -185,41 +296,76 @@
         return { moved, notFound };
     }
 
-    // ── Tabulka pro Excel (oddělovač = tabulátor) ──────────────────────────────
-    // Formát: "Popis AR_KÓD" v každé buňce – 2 buňky na řádek, oddělené tabulátorem
-    // Sloupce plní shora dolů (novinové řazení):
-    //   28 položek → sloupec 1: řádky 1–14, sloupec 2: řádky 15–28
-    function itemLabel(item) {
-        return item.desc ? `${item.desc} ${item.code}` : item.code;
-    }
-
-    function buildExcelTable(items) {
+    // ── Tabulka pro Word (kopírováno jako HTML) ────────────
+    function buildWordTableHtml(items) {
         const half = Math.ceil(items.length / 2);
         const col1 = items.slice(0, half);
         const col2 = items.slice(half);
-        const rows = [];
+        // Bez ohraničení a paddingu, aby Word zdědil styl z cílové tabulky
+        let html = '<table id="cht2029-word-tbl" style="width:100%;border-collapse:collapse;"><tbody>';
         for (let i = 0; i < half; i++) {
-            const l = col1[i] ? itemLabel(col1[i]) : '';
-            const r = col2[i] ? itemLabel(col2[i]) : '';
-            rows.push(l + '\t' + r);
+            const l_desc = col1[i] ? col1[i].desc || '' : '';
+            const l_code = col1[i] ? col1[i].code || '' : '';
+            const r_desc = col2[i] ? col2[i].desc || '' : '';
+            const r_code = col2[i] ? col2[i].code || '' : '';
+
+            // ☒ = zaškrtnuto (&#9746;), ☐ = prázdné (&#9744;)
+            // Vynutíme velikost písma přes <span>, aby ji Word nepřepsal stylem cílové tabulky
+            const cbChecked = '<span style="font-family:Arial,sans-serif;font-size:16pt;">&#9746;</span>';
+            const cbUnchecked = '<span style="font-family:Arial,sans-serif;font-size:16pt;">&#9744;</span>';
+
+            const l_cell = col1[i] 
+                ? `${cbChecked} <span style="font-family:Arial,sans-serif;font-size:11pt;">${l_desc}<br><span style="mso-tab-count:1;white-space:pre;">&#9;</span>${l_code}</span>` 
+                : cbUnchecked;
+            const r_cell = col2[i] 
+                ? `${cbChecked} <span style="font-family:Arial,sans-serif;font-size:11pt;">${r_desc}<br><span style="mso-tab-count:1;white-space:pre;">&#9;</span>${r_code}</span>` 
+                : cbUnchecked;
+
+            html += `<tr>
+<td style="vertical-align:top;width:50%;">${l_cell}</td>
+<td style="vertical-align:top;width:50%;">${r_cell}</td>
+</tr>`;
         }
-        return rows.join('\n');
+        html += '</tbody></table>';
+        return html;
     }
 
     // ── Zvýraznění CHT dokumentů na stránce 10300 ─────────────────────────────
     function highlightCHTRows(chtItems) {
-        const nums = chtItems.map(i => i.code.replace('CHT ', '').trim());
-        const cells = document.querySelectorAll('td[headers="FORM_HID"]');
         let count = 0;
-        cells.forEach(cell => {
-            const txt = cell.textContent.trim();
-            // Základní číslo CHT musí souhlasit; za ním může být suffix (A, B, _A, _B…)
-            // ale nesmí pokračovat další číslicí (aby CHT 2003 nechytil CHT 20030)
-            const matched = nums.some(n => new RegExp('^CHT\\s*' + n + '(?:[^0-9]|$)', 'i').test(txt));
+
+        // Sestavíme matcher pro každou položku
+        const matchers = chtItems.map(item => {
+            const chtMatch = CHT_RE.exec(item.code);
+            if (chtMatch) {
+                // CHT kód: matchujeme číslo + volitelný suffix
+                // (povolujeme mezery i podtržítka, např. HTML má "CHT 2004_A", Excel má "CHT 2004 A")
+                const num    = chtMatch[1];
+                const suffix = chtMatch[2];
+                if (suffix) {
+                    return txt => new RegExp('CHT[\\s_]*' + num + '[\\s_]*' + suffix + '(?:[^A-Za-z0-9]|$)', 'i').test(txt);
+                }
+                return txt => new RegExp('CHT[\\s_]*' + num + '(?:[^0-9]|$)', 'i').test(txt);
+            }
+            // Fallback: textová shoda (pro dokumenty bez CHT kódu)
+            const needle = item.code.toLowerCase();
+            return txt => txt.toLowerCase().includes(needle);
+        });
+
+        // Iterujeme přes všechny řádky tabulky, protože potřebujeme prohledávat jak FORM_HID (kód), tak FORM_NAME (název)
+        const rows = document.querySelectorAll('tr');
+        rows.forEach(row => {
+            const hidCell = row.querySelector('td[headers="FORM_HID"]');
+            const nameCell = row.querySelector('td[headers="FORM_NAME"]');
+            if (!hidCell && !nameCell) return;
+
+            const hidTxt = hidCell ? hidCell.textContent.trim() : '';
+            const nameTxt = nameCell ? nameCell.textContent.trim() : '';
+            const combinedTxt = hidTxt + ' | ' + nameTxt; // Hledáme v obou najednou
+
+            const matched = matchers.some(fn => fn(combinedTxt));
             if (!matched) return;
-            const row = cell.closest('tr');
-            if (!row) return;
-            // background-color musí jít na <td>, ne na <tr> — APEX má barvy přímo na buňkách
+
             row.querySelectorAll('td').forEach(td =>
                 td.style.setProperty('background-color', '#d4edda', 'important')
             );
@@ -251,28 +397,21 @@
   <button id="cht2029-close" title="Zavřít"
     style="margin-left:auto;background:none;border:none;cursor:pointer;font-size:18px;line-height:1;color:#999;">×</button>
 </div>
-<input type="file" id="cht2029-file" accept=".docx" style="display:none;">
+<input type="file" id="cht2029-file" accept=".xlsx" style="display:none;">
 <button id="cht2029-open-btn"
   style="width:100%;padding:7px 0;background:#2d6a9f;color:#fff;border:none;
          border-radius:5px;cursor:pointer;font-size:12px;font-family:inherit;">
-  Vybrat soubor CHT 2029.docx
+  Vybrat soubor CHT 2029 (.xlsx)
 </button>
 <div id="cht2029-status" style="margin-top:8px;color:#666;font-size:11px;min-height:16px;"></div>
 <div id="cht2029-body"  style="display:none;margin-top:10px;"></div>`;
 
         document.body.appendChild(panel);
 
-<<<<<<< HEAD
-        document.getElementById('cht2029-close').onclick = () => panel.remove();
-        document.getElementById('cht2029-open-btn').onclick = () =>
-            document.getElementById('cht2029-file').click();
-        document.getElementById('cht2029-file').onchange = e => {
-=======
         document.getElementById('cht2029-close').onclick   = () => panel.remove();
         document.getElementById('cht2029-open-btn').onclick = () =>
             document.getElementById('cht2029-file').click();
         document.getElementById('cht2029-file').onchange   = e => {
->>>>>>> 6b5339cbb2eb8b5473d11da305e2a295067a59aa
             if (e.target.files.length) handleFile(e.target.files[0]);
         };
     }
@@ -288,22 +427,11 @@
         if (body) { body.style.display = 'none'; body.innerHTML = ''; }
 
         try {
-            const xml = await readDocxXml(file);
-
-<<<<<<< HEAD
-            const arItems = extractCheckedAR(xml);
-=======
-            const arItems  = extractCheckedAR(xml);
->>>>>>> 6b5339cbb2eb8b5473d11da305e2a295067a59aa
-            const chtItems = extractCheckedCHT(xml);
+            const { arItems, chtItems } = await readXlsxData(file);
 
             setStatus(`Nalezeno: ${arItems.length} AR profilů, ${chtItems.length} CHT dokumentů`);
 
-<<<<<<< HEAD
-            if (ON_3191) showResults3191(arItems, body);
-=======
             if (ON_3191)  showResults3191(arItems, body);
->>>>>>> 6b5339cbb2eb8b5473d11da305e2a295067a59aa
             if (ON_10300) showResults10300(chtItems, body);
             if (body) body.style.display = 'block';
 
@@ -316,7 +444,7 @@
     function showResults3191(arItems, body) {
         if (!body) return;
         const { moved, notFound } = moveProfilesToRight(arItems);
-        const tableText = buildExcelTable(arItems);
+        const tableHtml = buildWordTableHtml(arItems);
 
         let html = '';
         if (moved.length) {
@@ -330,28 +458,34 @@
             </div>`;
         }
 
-        html += `<div style="font-weight:bold;margin-bottom:4px;">Tabulka pro Excel:</div>
-<textarea id="cht2029-tbl" style="
-  width:100%;height:120px;font-family:monospace;font-size:9.5px;
-  box-sizing:border-box;resize:vertical;border:1px solid #ccc;
-  border-radius:4px;padding:4px;" readonly>${tableText}</textarea>
+        html += `<div style="font-weight:bold;margin-bottom:4px;">Tabulka pro Word:</div>
+<div id="cht2029-tbl-container" style="
+  width:100%;height:140px;overflow-y:auto;background:#f9f9f9;
+  border:1px solid #ccc;border-radius:4px;padding:4px;">
+  ${tableHtml}
+</div>
 <button id="cht2029-copy"
   style="width:100%;margin-top:5px;padding:5px 0;background:#28a745;color:#fff;
          border:none;border-radius:4px;cursor:pointer;font-size:12px;font-family:inherit;">
-  Kopírovat tabulku (Ctrl+C)
+  Kopírovat pro Word (HTML)
 </button>`;
 
         body.innerHTML = html;
 
         document.getElementById('cht2029-copy').onclick = function () {
-            const ta = document.getElementById('cht2029-tbl');
-            ta.select();
+            const tbl = document.getElementById('cht2029-word-tbl');
+            const range = document.createRange();
+            range.selectNodeContents(tbl);
+            const sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(range);
             try {
-                navigator.clipboard.writeText(ta.value).then(() => flash(this));
-            } catch (_) {
                 document.execCommand('copy');
                 flash(this);
+            } catch (err) {
+                console.error('Kopírování selhalo', err);
             }
+            sel.removeAllRanges();
         };
 
         function flash(btn) {
@@ -378,8 +512,4 @@
         buildPanel();
     }
 
-<<<<<<< HEAD
 })();
-=======
-})();
->>>>>>> 6b5339cbb2eb8b5473d11da305e2a295067a59aa

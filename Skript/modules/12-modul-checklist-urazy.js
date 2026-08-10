@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Úrazy Checklist u popisu
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      1.0.1
+// @version      1.0.2
 // @description  Univerzální checklist zobrazený vedle pole "Popis události", položky po odškrtnutí zešednou a přeškrtnou se.
 // @author       Martin
 // @match        https://*/ords/*/f?p=110:6501:*
@@ -35,10 +35,10 @@
 
             // Univerzální položky checklistu - zde si můžeš přidávat/upravovat položky
             const checklistItems = [
-                { id: 'chk_1', label: 'V kolik hodin se stal úraz?' },
-                { id: 'chk_2', label: 'Jméno poškozeného?' },
+                { id: 'chk_1', label: 'Jméno poškozeného?' },
+                { id: 'chk_2', label: 'V kolik hodin se stal úraz?' },
                 { id: 'chk_3', label: 'Co se stalo?' },
-                { id: 'chk_4', label: 'Kde ke úrazu došlo?' },
+                { id: 'chk_4', label: 'Kde k úrazu došlo?' },
                 { id: 'chk_5', label: 'Jaký úraz utrpěl zaměstnanec?' },
                 { id: 'chk_6', label: 'Které části těla jsou poraněny?' },
                 { id: 'chk_7', label: 'Jak vážné bylo zranění?' },

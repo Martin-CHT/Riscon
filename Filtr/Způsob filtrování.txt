@@ -1,0 +1,140 @@
+Sloupce
+AA.	AA.Skupina
+AC.	AC.Země/Stát 1
+AD.	AD.Země/Stát 2
+AE.	AE.Mimo stav
+AF.	AF.Propuštěn
+AH.	AH.Plán. LPP
+AI.	AI.Plán. školení
+AJ.	AJ.LPP po termínu
+AK.	AK.Školení po termínu
+AL.	AL.Rychlá informace
+AM.	AM.Zdrav. omezení
+AN.	AN.Rodné příjmení
+AO.	AO.Propojené pozice
+AP.	AP.Nákl. středisko
+AQ.	AQ.Zařazení
+AR.	AR.Mimo stav od
+AS.	AS.Vytvořil(a)
+AT.	AT.Vytvořeno
+AU.	AU.Upravil(a)
+AV.	AV.Upraveno
+AW.	AW.Režim práce
+AX.	AX.Vlasní účet RISCON
+BB.	BB.Označení směny
+BC.	BC.Počet propojených pracovišť
+BD.	BD.Poslední změna pozice
+BE.	BE.SAP ID
+BF.	BF.Poslední biol. test
+BG.	BG.Rodné číslo
+BH.	BH.Zdravotní pojišťovna
+BI.	BI.Výjimka z testu v platnosti
+BJ.	BJ.Příští biol. test nejpozději
+BK.	BK.Výjimka v platnosti
+BM.	BM.Přímý nadřízený
+BN.	BN.Je ze skupiny agenturních zamců
+BP.	BP.Přidělené RISCON role
+BQ.	BQ.Pohlaví
+BR.	BR.Poznámka
+BS.	BS.ISCO klasifikace
+BT.	BT.Termín hodnocení adapt. procesu
+BU.	BU.Praní prac. oděvů zajistí
+BV.	BV.Schopnost rozumět místnímu jazyku
+BW.	BW.Druh prac. poměru
+BX.	BX.Druh práce
+BY.	BY.Týdenní úvazek (hod.)
+BZ.	BZ.Délka směny
+CA.	CA.Agentura práce
+CB.	CB.Důvody k upuštění od PLP
+CC.	CC.Počet přidělených karet
+E.	E.Příjmení
+F.	F.Jméno
+G.	G.Titul
+H.	H.Os. číslo
+I.	I.Narození
+J.	J.Nástup
+K.	K.Ukončení PP
+L.	L.E-mail
+M.	M.Telefon 1
+N.	N.Telefon 2
+O.	O.Adresa 1
+P.	P.Obec 1
+Q.	Q.PSČ 1
+S.	S.Adresa 2
+T.	T.Obec 2
+U.	U.PSČ 2
+W.	W.Občanství
+X.	X.Národnost
+Y.	Y.Poslední změna
+Z.	Z.Oddělení
+
+
+Funkce / Operátory
+!=
+<
+<=
+=
+>
+>=
+ABS
+ADD_MONTHS
+AND
+BETWEEN
+CASE
+CEIL
+CHR
+COALESCE
+COS
+CURRENT_DATE
+CURRENT_TIMESTAMP
+DECODE
+ELSE
+END
+EXP
+GREATEST
+IN
+INITCAP
+INSTR
+IS
+LAST_DAY
+LEAST
+LENGTH
+LIKE
+LOG
+LOWER
+LPAD
+LTRIM
+MOD
+MONTHS_BETWEEN
+NEXT_DAY
+NOT
+NOT BETWEEN
+NOT IN
+NOT LIKE
+NULL
+NVL
+OR
+POWER
+REGEXP_INSTR
+REGEXP_LIKE
+REGEXP_REPLACE
+REGEXP_SUBSTR
+REPLACE
+ROUND
+RPAD
+RTRIM
+SIGN
+SIN
+SQRT
+SUBSTR
+SYSDATE
+SYSTIMESTAMP
+THEN
+TO_CHAR
+TO_DATE
+TO_TIMESTAMP
+TRANSLATE
+TRIM
+TRUNC
+UPPER
+WHEN
