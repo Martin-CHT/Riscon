@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Pulse (MutationObserver)
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      9.0.2
+// @version      9.0.3
 // @description  MutationObserver pro automatické spouštění modulů po změnách DOM. Součást Riscon Suite – lze nainstalovat samostatně nebo načíst přes @require.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -53,6 +53,7 @@
             M.safeRun('Lists', () => M.Lists && M.Lists.init());
             M.safeRun('Tabs', () => M.Tabs && M.Tabs.init());
             M.safeRun('Checklist', () => M.Checklist && M.Checklist.init());
+            M.safeRun('UrazyZamestnanec', () => M.UrazyZamestnanec && M.UrazyZamestnanec.init());
         }
     };
 
