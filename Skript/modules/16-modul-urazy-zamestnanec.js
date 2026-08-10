@@ -53,7 +53,7 @@
         }
 
         if (!sessionId && typeof window.$v === 'function') {
-            try { sessionId = window.$v('pInstance') || ''; } catch (e) {}
+            try { sessionId = window.$v('pInstance') || ''; } catch (e) { }
         }
 
         if (!sessionId) {
@@ -73,7 +73,7 @@
 
         // 1. Skryté pole (pro Popup LOV)
         const hiddenInput = document.getElementById(`P${pageId}_EMPLOYEE_ID_HIDDENVALUE`) ||
-                            document.getElementById('P6501_EMPLOYEE_ID_HIDDENVALUE');
+            document.getElementById('P6501_EMPLOYEE_ID_HIDDENVALUE');
         if (hiddenInput && hiddenInput.value && hiddenInput.value.trim() !== '') {
             empId = hiddenInput.value.trim();
         }
@@ -90,13 +90,13 @@
                         empId = String(val[0]).trim();
                     }
                 }
-            } catch (e) {}
+            } catch (e) { }
         }
 
         // 3. Viditelný input/select (pokud obsahuje přímo ID zaměstnance)
         if (!empId) {
             const regularInput = document.getElementById(`P${pageId}_EMPLOYEE_ID`) ||
-                                 document.getElementById('P6501_EMPLOYEE_ID');
+                document.getElementById('P6501_EMPLOYEE_ID');
             if (regularInput && regularInput.value && regularInput.value.trim() !== '') {
                 const val = regularInput.value.trim();
                 if (/^\d+$/.test(val)) {
@@ -112,8 +112,8 @@
         init: function () {
             // Kontrola stránky 6501
             const isUrazyPage = window.location.href.indexOf('6501') !== -1 ||
-                                !!document.getElementById('P6501_EMPLOYEE_ID') ||
-                                !!document.getElementById('P6501_EVENT_DESCRIPTION_DISPLAY');
+                !!document.getElementById('P6501_EMPLOYEE_ID') ||
+                !!document.getElementById('P6501_EVENT_DESCRIPTION_DISPLAY');
             if (!isUrazyPage) return;
 
             const sessionInfo = getSessionInfo();
@@ -122,7 +122,7 @@
             const sessionId = sessionInfo.sessionId || "";
 
             const visibleInput = document.getElementById(`P${pageId}_EMPLOYEE_ID`) ||
-                                 document.getElementById('P6501_EMPLOYEE_ID');
+                document.getElementById('P6501_EMPLOYEE_ID');
             if (!visibleInput) return;
 
             const empId = getEmployeeId(pageId);
@@ -183,7 +183,7 @@
                 visibleInput.addEventListener('blur', handleUpdate);
 
                 const hiddenInput = document.getElementById(`P${pageId}_EMPLOYEE_ID_HIDDENVALUE`) ||
-                                    document.getElementById('P6501_EMPLOYEE_ID_HIDDENVALUE');
+                    document.getElementById('P6501_EMPLOYEE_ID_HIDDENVALUE');
                 if (hiddenInput) {
                     hiddenInput.addEventListener('change', handleUpdate);
                 }
