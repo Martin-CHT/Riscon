@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Modul Popup LOV
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      1.0.9
+// @version      1.0.10
 // @description  Vynutí otevírání vyskakovacích oken pro vyhledávání jako skutečně vnořených modálních dialogů (iframe) s nezalamujícím se textem.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -67,14 +67,28 @@
 
                                     if (!cw || !cd) return;
 
-                                    // 1. Podstrčení window.opener
-                                    try {
-                                        Object.defineProperty(cw, 'opener', {
-                                            get: function() { return window; },
-                                            configurable: true
-                                        });
-                                    } catch(e) {
-                                        cw.opener = window;
+                                    // 1. Prohlížeče blokují přepis window.opener uvnitř iframu.
+                                    // APEX ale v klasických Popup LOV spoléhá na to, že window.opener existuje (funkce passBack).
+                                    // Řešením je přepsat tyto funkce přímo v iframu pomocí eval a nahradit slovo "opener" za "parent".
+                                    const patchOpenerFunc = (parentObj, funcName, globalPath) => {
+                                        if (parentObj && typeof parentObj[funcName] === 'function') {
+                                            let funcStr = parentObj[funcName].toString();
+                                            // Pokud funkce používá opener, přepíšeme ho
+                                            if (funcStr.includes('opener')) {
+                                                funcStr = funcStr.replace(/\bopener\b/g, 'parent');
+                                                try {
+                                                    cw.eval(globalPath + ' = ' + funcStr);
+                                                } catch(err) {
+                                                    console.error("Riscon: Nelze patchovat funkci", funcName, err);
+                                                }
+                                            }
+                                        }
+                                    };
+
+                                    patchOpenerFunc(cw, 'passBack', 'window.passBack');
+                                    patchOpenerFunc(cw, '_lov_passBack', 'window._lov_passBack');
+                                    if (cw.apex && cw.apex.navigation && cw.apex.navigation.popup) {
+                                        patchOpenerFunc(cw.apex.navigation.popup, 'close', 'apex.navigation.popup.close');
                                     }
                                     
                                     // 2. Přepis window.close v iframu, aby zavřel náš modál
