@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Modul Popup LOV
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      1.0.10
+// @version      1.0.11
 // @description  Vynutí otevírání vyskakovacích oken pro vyhledávání jako skutečně vnořených modálních dialogů (iframe) s nezalamujícím se textem.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -67,41 +67,116 @@
 
                                     if (!cw || !cd) return;
 
-                                    // 1. Prohlížeče blokují přepis window.opener uvnitř iframu.
-                                    // APEX ale v klasických Popup LOV spoléhá na to, že window.opener existuje (funkce passBack).
-                                    // Řešením je přepsat tyto funkce přímo v iframu pomocí eval a nahradit slovo "opener" za "parent".
-                                    const patchOpenerFunc = (parentObj, funcName, globalPath) => {
-                                        if (parentObj && typeof parentObj[funcName] === 'function') {
-                                            let funcStr = parentObj[funcName].toString();
-                                            // Pokud funkce používá opener, přepíšeme ho
-                                            if (funcStr.includes('opener')) {
-                                                funcStr = funcStr.replace(/\bopener\b/g, 'parent');
-                                                try {
-                                                    cw.eval(globalPath + ' = ' + funcStr);
-                                                } catch(err) {
-                                                    console.error("Riscon: Nelze patchovat funkci", funcName, err);
-                                                }
-                                            }
-                                        }
-                                    };
-
-                                    patchOpenerFunc(cw, 'passBack', 'window.passBack');
-                                    patchOpenerFunc(cw, '_lov_passBack', 'window._lov_passBack');
-                                    if (cw.apex && cw.apex.navigation && cw.apex.navigation.popup) {
-                                        patchOpenerFunc(cw.apex.navigation.popup, 'close', 'apex.navigation.popup.close');
+                                    // 1. Zkusíme podstrčit window.opener
+                                    try {
+                                        Object.defineProperty(cw, 'opener', {
+                                            get: function() { return window; },
+                                            configurable: true
+                                        });
+                                    } catch(e) {
+                                        cw.opener = window;
                                     }
                                     
-                                    // 2. Přepis window.close v iframu, aby zavřel náš modál
-                                    cw.close = function() {
-                                        closeDialog();
-                                    };
+                                    cw.close = function() { closeDialog(); };
                                     
-                                    // Některé verze APEXu volají apex.navigation.dialog.close
                                     if (cw.apex && cw.apex.navigation && cw.apex.navigation.dialog) {
                                         cw.apex.navigation.dialog.close = function() { closeDialog(); };
                                     }
 
-                                    // 3. Vložení CSS proti zalamování
+                                    // 2. Patch APEX funkcí proti chybějícímu opener (přes Script tag pro obejití Eval CSP)
+                                    const patchOpenerFunc = (obj, objName, funcName) => {
+                                        try {
+                                            if (obj && typeof obj[funcName] === 'function') {
+                                                let funcStr = obj[funcName].toString();
+                                                if (funcStr.includes('opener')) {
+                                                    funcStr = funcStr.replace(/\bopener\b/g, 'parent');
+                                                    let s = cd.createElement('script');
+                                                    s.textContent = objName + '.' + funcName + ' = ' + funcStr + ';';
+                                                    cd.head.appendChild(s);
+                                                }
+                                            }
+                                        } catch(e) {}
+                                    };
+                                    patchOpenerFunc(cw, 'window', 'passBack');
+                                    patchOpenerFunc(cw, 'window', '_lov_passBack');
+                                    if (cw.apex && cw.apex.navigation && cw.apex.navigation.popup) {
+                                        patchOpenerFunc(cw.apex.navigation.popup, 'apex.navigation.popup', 'close');
+                                    }
+
+                                    // 3. ULTIMÁTNÍ ZÁCHYT: Odchycení kliknutí na LOV položky
+                                    // Pokud všechny přepisy selžou (např. kvůli CSP), chytíme kliknutí ručně
+                                    cd.addEventListener('click', function(e) {
+                                        let a = e.target.closest('a');
+                                        if (!a || !a.href) return;
+                                        
+                                        if (a.href.startsWith('javascript:')) {
+                                            let code = a.href.substring(11);
+                                            if (code.includes('passBack(') || code.includes('popup.close(') || code.includes('_lov_passBack(')) {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                
+                                                let match = code.match(/\((.*)\)/);
+                                                if (match) {
+                                                    let argsStr = match[1];
+                                                    // Bezpečný parser argumentů
+                                                    let args = [];
+                                                    let currentArg = '';
+                                                    let inQuotes = false;
+                                                    let quoteChar = '';
+                                                    for (let i = 0; i < argsStr.length; i++) {
+                                                        let char = argsStr[i];
+                                                        if ((char === "'" || char === '"') && (i === 0 || argsStr[i-1] !== '\\\\')) {
+                                                            if (!inQuotes) { inQuotes = true; quoteChar = char; }
+                                                            else if (quoteChar === char) { inQuotes = false; }
+                                                            else { currentArg += char; }
+                                                        } else if (char === ',' && !inQuotes) {
+                                                            args.push(currentArg.trim());
+                                                            currentArg = '';
+                                                        } else {
+                                                            currentArg += char;
+                                                        }
+                                                    }
+                                                    args.push(currentArg.trim());
+                                                    
+                                                    let pReturn = args[0] || '';
+                                                    let pDisplay = args[1] || pReturn;
+
+                                                    // Najdeme jméno cílového pole z původní funkce
+                                                    let fallbackItemId = null;
+                                                    try {
+                                                        if (cw.passBack) {
+                                                            let m = cw.passBack.toString().match(/getElementById\(['"](.*?)['"]\)/);
+                                                            if (m) fallbackItemId = m[1];
+                                                        }
+                                                    } catch(err){}
+                                                    
+                                                    // 1. Zápis přes moderní APEX API v parent okně
+                                                    if (window.apex && window.apex.navigation && window.apex.navigation.popup && typeof window.apex.navigation.popup.close === 'function') {
+                                                        window.apex.navigation.popup.close(pReturn, pDisplay);
+                                                    } 
+                                                    // 2. Zápis přes ID položky v parent okně
+                                                    else if (fallbackItemId) {
+                                                        if (window.apex && window.apex.item) {
+                                                            window.apex.item(fallbackItemId).setValue(pReturn, pDisplay);
+                                                        } else {
+                                                            let item = window.document.getElementById(fallbackItemId);
+                                                            if (item) {
+                                                                item.value = pReturn;
+                                                                item.dispatchEvent(new Event('change', {bubbles: true}));
+                                                            }
+                                                        }
+                                                        closeDialog();
+                                                    }
+                                                    // 3. Pokud vše selže, aspoň zavřeme dialog
+                                                    else {
+                                                        closeDialog();
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }, true);
+
+                                    // 4. Vložení CSS proti zalamování
                                     const style = cd.createElement('style');
                                     style.textContent = \`
                                         body, .a-PopupLOV-results, .a-PopupLOV-dialog { white-space: nowrap !important; }
@@ -111,7 +186,7 @@
                                     \`;
                                     cd.head.appendChild(style);
 
-                                    // 4. Automatické roztažení podle obsahu
+                                    // 5. Automatické roztažení podle obsahu
                                     let resizeDialog = () => {
                                         try {
                                             let contentWidth = cd.documentElement.scrollWidth;
@@ -131,12 +206,11 @@
                                     setTimeout(resizeDialog, 250);
                                     setTimeout(resizeDialog, 1000);
                                     
-                                    // MutationObserver v iframu
                                     const observer = new cw.MutationObserver(() => resizeDialog());
                                     observer.observe(cd.body, { childList: true, subtree: true, characterData: true });
 
                                 } catch(err) {
-                                    console.error("Riscon: Nelze přistoupit k iframe (asi cross-origin?):", err);
+                                    console.error("Riscon: Nelze přistoupit k iframe:", err);
                                 }
                             };
 
