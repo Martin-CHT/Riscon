@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Modul Popup LOV
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      1.0.7
+// @version      1.0.8
 // @description  Vynutí otevírání vyskakovacích oken pro vyhledávání jako skutečně vnořených modálních dialogů (iframe) s nezalamujícím se textem.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -21,43 +21,70 @@
 
     RS.Modules.PopupLov = {
         init: function () {
-            // Protože sdružený skript používá GM_ funkce, je spuštěn v izolovaném sandboxu.
-            // Zde proto injektujeme kompletní logiku tohoto modulu přímo do nativního kontextu stránky,
-            // abychom měli bezproblémový přístup k nativnímu window.open a window.jQuery (potažmo apex.jQuery).
-            
+            // Vložíme kompletní logiku do nativního okna, abychom se vyhnuli sandboxu Tampermonkey
             const script = document.createElement('script');
             script.textContent = `
                 (function() {
-                    // --- POMOCNÉ FUNKCE PRO DIALOG ---
-                    function openInDialog(url) {
-                        let $ = window.apex ? window.apex.jQuery : window.jQuery;
-                        if (!$) {
-                            console.error("Riscon: jQuery není k dispozici pro vytvoření dialogu.");
-                            return;
+                    // --- POMOCNÉ FUNKCE PRO VLASTNÍ DIALOG BEZ ZÁVISLOSTI NA JQUERY UI ---
+                    function openInDialog(url, windowName) {
+                        let modal = document.getElementById('riscon-custom-modal');
+                        if (!modal) {
+                            // Overlay
+                            modal = document.createElement('div');
+                            modal.id = 'riscon-custom-modal';
+                            modal.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(0,0,0,0.5); z-index:999999; display:flex; align-items:center; justify-content:center;';
+                            
+                            // Content container
+                            let content = document.createElement('div');
+                            content.id = 'riscon-custom-modal-content';
+                            content.style.cssText = 'background:#fff; width:800px; max-width:95vw; height:550px; position:relative; box-shadow: 0 4px 20px rgba(0,0,0,0.3); border-radius:5px; display:flex; flex-direction:column; overflow:hidden; transition: width 0.3s;';
+                            
+                            // Header
+                            let header = document.createElement('div');
+                            header.style.cssText = 'padding:10px 15px; background:#f5f5f5; border-bottom:1px solid #ddd; display:flex; justify-content:space-between; align-items:center; font-family:sans-serif; font-weight:bold; font-size:14px;';
+                            header.innerHTML = '<span>Vyhledávání (Riscon)</span><button id="riscon-custom-modal-close" style="cursor:pointer; background:none; border:none; font-size:20px; line-height:1; padding:0; color:#555;">&times;</button>';
+                            
+                            // Iframe container
+                            let iframeContainer = document.createElement('div');
+                            iframeContainer.style.cssText = 'flex-grow:1; position:relative; overflow:hidden;';
+                            
+                            // Iframe
+                            let iframe = document.createElement('iframe');
+                            iframe.id = 'riscon-lov-iframe';
+                            iframe.name = 'riscon-lov-iframe'; // Jméno důležité pro náš detekční kód uvnitř!
+                            iframe.style.cssText = 'width:100%; height:100%; border:none; background:#fff;';
+                            
+                            iframeContainer.appendChild(iframe);
+                            content.appendChild(header);
+                            content.appendChild(iframeContainer);
+                            modal.appendChild(content);
+                            document.body.appendChild(modal);
+                            
+                            // Zavírací tlačítko
+                            document.getElementById('riscon-custom-modal-close').onclick = function() {
+                                closeDialog();
+                            };
+                            
+                            // Kliknutí mimo okno zavře dialog
+                            modal.onclick = function(e) {
+                                if (e.target === modal) closeDialog();
+                            };
                         }
                         
-                        let $dialog = $('#riscon-lov-dialog');
-                        if ($dialog.length === 0) {
-                            $dialog = $('<div id="riscon-lov-dialog" style="overflow:hidden; padding:0;"><iframe id="riscon-lov-iframe" name="riscon-lov-iframe" style="width:100%;height:100%;border:none;"></iframe></div>').appendTo('body');
-                        }
+                        document.getElementById('riscon-custom-modal').style.display = 'flex';
+                        // Obnovíme výchozí šířku, kdyby předchozí okno bylo hodně široké
+                        document.getElementById('riscon-custom-modal-content').style.width = '800px'; 
                         
-                        $('#riscon-lov-iframe').attr('src', url);
-                        
-                        $dialog.dialog({
-                            modal: true,
-                            title: "Vyhledávání",
-                            width: 800,
-                            height: 550,
-                            close: function() {
-                                $('#riscon-lov-iframe').attr('src', 'about:blank');
-                            }
-                        });
+                        // Zabráníme prázdnému URL
+                        let finalUrl = url || 'about:blank';
+                        document.getElementById('riscon-lov-iframe').src = finalUrl;
                     }
 
                     function closeDialog() {
-                        let $ = window.apex ? window.apex.jQuery : window.jQuery;
-                        if ($ && $('#riscon-lov-dialog').length) {
-                            $('#riscon-lov-dialog').dialog('close');
+                        let modal = document.getElementById('riscon-custom-modal');
+                        if (modal) {
+                            modal.style.display = 'none';
+                            document.getElementById('riscon-lov-iframe').src = 'about:blank';
                         }
                     }
 
@@ -65,9 +92,15 @@
                     if (window.self === window.top) {
                         const originalOpen = window.open;
                         window.open = function(url, name, features) {
-                            if (url && (url.includes('wwv_flow.ajax') || url.includes('p_request=PLUGIN') || url.includes('f?p=110') || name === 'winLov' || name === 'PopupLov')) {
-                                openInDialog(url);
-                                return { focus: function(){}, close: closeDialog };
+                            // Rozšířené podmínky pro zachycení LOV
+                            let isLov = name === 'winLov' || name === 'PopupLov';
+                            if (url && (url.includes('wwv_flow.ajax') || url.includes('p_request=PLUGIN') || url.includes('f?p=110'))) {
+                                isLov = true;
+                            }
+                            
+                            if (isLov) {
+                                openInDialog(url, name);
+                                return { focus: function(){}, close: closeDialog, location: { replace: function(u){ openInDialog(u, name); } } };
                             }
                             return originalOpen.apply(this, arguments);
                         };
@@ -76,7 +109,7 @@
                             const origApexPopup = apex.navigation.popup;
                             apex.navigation.popup = function(pOptions) {
                                 if (pOptions && pOptions.url && (pOptions.url.includes('f?p=110') || pOptions.url.includes('wwv_flow.ajax'))) {
-                                    openInDialog(pOptions.url);
+                                    openInDialog(pOptions.url, pOptions.name);
                                     return { focus: function(){}, close: closeDialog };
                                 }
                                 return origApexPopup.apply(this, arguments);
@@ -87,19 +120,18 @@
                             const origPopupURL = window.popupURL;
                             window.popupURL = function(url) {
                                 if (url && url.includes('f?p=')) {
-                                    openInDialog(url);
+                                    openInDialog(url, 'winLov');
                                     return;
                                 }
                                 origPopupURL.apply(this, arguments);
                             };
                         }
                         
-                        // Poskytneme funkci pro iframe, aby ji mohl zavolat
                         window.RS_PopupLov_closeDialog = closeDialog;
                     } 
                     // --- 2. JSME V IFRAME DIALOGU: ZAMEZENÍ ZALAMOVÁNÍ A RESIZE ---
                     else if (window.name === 'riscon-lov-iframe') {
-                        // Úprava opener pro APEX návrat hodnoty
+                        // Úprava opener pro APEX návrat hodnoty (aby fungovalo vrácení hodnoty do pole)
                         try {
                             Object.defineProperty(window, 'opener', {
                                 get: function() { return window.parent; },
@@ -109,14 +141,14 @@
                             window.opener = window.parent;
                         }
                         
-                        // Zavření okna přes rodiče
+                        // Přepis window.close pro zavření našeho divu zevnitř iframu
                         window.close = function() {
                             if (window.parent && typeof window.parent.RS_PopupLov_closeDialog === 'function') {
                                 window.parent.RS_PopupLov_closeDialog();
                             }
                         };
 
-                        // CSS
+                        // Vložíme CSS pro zákaz zalamování textů
                         const style = document.createElement('style');
                         style.textContent = \`
                             body, .a-PopupLOV-results, .a-PopupLOV-dialog { white-space: nowrap !important; }
@@ -126,23 +158,23 @@
                         \`;
                         document.documentElement.appendChild(style);
 
-                        // Resize logika
+                        // Resize logika – upravuje šířku nadřazeného divu místo jQuery dialogu
                         let resizeDialog = () => {
                             try {
                                 let contentWidth = document.documentElement.scrollWidth;
-                                if (contentWidth > 200 && window.parent && window.parent.apex && window.parent.apex.jQuery) {
-                                    let $ = window.parent.apex.jQuery;
-                                    let $dlg = $('#riscon-lov-dialog', window.parent.document);
+                                if (contentWidth > 200 && window.parent && window.parent.document) {
+                                    let contentDiv = window.parent.document.getElementById('riscon-custom-modal-content');
                                     
-                                    if ($dlg.length) {
-                                        let targetWidth = contentWidth + 60; 
-                                        let maxScreenWidth = $(window.parent).width() * 0.95;
-                                        if (targetWidth > maxScreenWidth) targetWidth = maxScreenWidth;
+                                    if (contentDiv) {
+                                        let targetWidth = contentWidth + 40; // rezerva na scrollbar a padding
+                                        let maxScreenWidth = window.parent.innerWidth * 0.95;
+                                        if (targetWidth > maxScreenWidth) {
+                                            targetWidth = maxScreenWidth;
+                                        }
 
-                                        let currentWidth = $dlg.dialog("option", "width");
+                                        let currentWidth = parseInt(window.getComputedStyle(contentDiv).width, 10) || 800;
                                         if (targetWidth > currentWidth + 20) { 
-                                            $dlg.dialog("option", "width", targetWidth);
-                                            $dlg.dialog("option", "position", { my: "center", at: "center", of: window.parent });
+                                            contentDiv.style.width = targetWidth + 'px';
                                         }
                                     }
                                 }
