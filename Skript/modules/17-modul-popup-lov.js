@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Modul Popup LOV
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      1.0.3
+// @version      1.0.4
 // @description  Vynutí otevírání vyskakovacích oken pro vyhledávání jako skutečně vnořených modálních dialogů (iframe) s nezalamujícím se textem.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -26,7 +26,7 @@
                 this.interceptWindowOpen();
             } 
             // Jsme uvnitř našeho vnořeného iframe dialogu
-            else if (window.self !== window.top && window.location.href.includes('wwv_flow.ajax')) {
+            else if (window.self !== window.top && window.name === 'riscon-lov-iframe') {
                 this.setupIframePopup();
             }
         },
@@ -35,7 +35,7 @@
             const originalOpen = window.open;
             window.open = function(url, name, features) {
                 // Pokud APEX žádá o otevření vyhledávacího okna, zachytíme to
-                if (url && (url.includes('wwv_flow.ajax') || url.includes('p_request=PLUGIN'))) {
+                if (url && (url.includes('wwv_flow.ajax') || url.includes('p_request=PLUGIN') || url.includes('f?p=110') || name === 'winLov' || name === 'PopupLov')) {
                     RS.Modules.PopupLov.openInDialog(url);
                     // Vrátíme falešný window objekt, kdyby na něj APEX volal např. .focus()
                     return { focus: function(){}, close: function(){ RS.Modules.PopupLov.closeDialog(); } };
@@ -55,7 +55,7 @@
             // Připravíme si jQuery UI Dialog kontejner
             let $dialog = $('#riscon-lov-dialog');
             if ($dialog.length === 0) {
-                $dialog = $('<div id="riscon-lov-dialog" style="overflow:hidden; padding:0;"><iframe id="riscon-lov-iframe" style="width:100%;height:100%;border:none;"></iframe></div>').appendTo('body');
+                $dialog = $('<div id="riscon-lov-dialog" style="overflow:hidden; padding:0;"><iframe id="riscon-lov-iframe" name="riscon-lov-iframe" style="width:100%;height:100%;border:none;"></iframe></div>').appendTo('body');
             }
             
             // Nastavíme URL do iframe
@@ -107,12 +107,13 @@
             style.textContent = `
                 body, .a-PopupLOV-results, .a-PopupLOV-dialog { white-space: nowrap !important; }
                 td, th, a, span { white-space: nowrap !important; }
-                table.t-Report-report { width: auto !important; }
+                table.t-Report-report { width: auto !important; max-width: none !important; }
+                .t-Report-report td, .t-Report-report th { white-space: nowrap !important; }
             `;
             document.documentElement.appendChild(style);
 
-            // Jednorázové rozšíření dialogu podle obsahu bez jakékoliv zpětné smyčky
-            setTimeout(() => {
+            // Dynamické rozšíření dialogu podle obsahu s hlídáním přes MutationObserver
+            let resizeDialog = () => {
                 try {
                     let contentWidth = document.documentElement.scrollWidth;
                     // Pokud je co rozšiřovat a můžeme komunikovat s rodičem
@@ -132,7 +133,7 @@
 
                             // Pokud je obsah širší než výchozích 800px, rozšíříme dialog a vycentrujeme jej
                             let currentWidth = $dlg.dialog("option", "width");
-                            if (targetWidth > currentWidth) {
+                            if (targetWidth > currentWidth + 20) { // Změníme jen pokud je rozdíl znatelný
                                 $dlg.dialog("option", "width", targetWidth);
                                 $dlg.dialog("option", "position", { my: "center", at: "center", of: window.parent });
                             }
@@ -141,7 +142,21 @@
                 } catch (e) {
                     console.error("Riscon: Chyba při změně velikosti iframe dialogu", e);
                 }
-            }, 250); // Vyčkáme zlomek sekundy na vykreslení tabulky a provedeme jen JEDNOU
+            };
+
+            // Zavoláme hned a navážeme na změny v DOM (kdyby se tabulka načetla AJAXem)
+            setTimeout(resizeDialog, 250);
+            setTimeout(resizeDialog, 1000);
+            
+            // Sledovat změny a přizpůsobit se, pokud se tabulka zvětší
+            const observer = new MutationObserver(() => {
+                resizeDialog();
+            });
+            if (document.body) {
+                observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+            } else {
+                document.addEventListener('DOMContentLoaded', () => observer.observe(document.body, { childList: true, subtree: true, characterData: true }));
+            }
         }
     };
 })();
