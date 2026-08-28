@@ -23,6 +23,7 @@
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_deleteValue
+// @grant        unsafeWindow
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/00-core.js?v=9.0.2
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/01-styles.js?v=9.0.12
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/02-settings-ui.js?v=9.0.2
@@ -40,7 +41,7 @@
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/14-modul-pripnute-zahlavi.js?v=9.0.3
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/15-modul-auto-id-sekvence.js?v=5.4.3
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/16-modul-urazy-zamestnanec.js?v=1.2.1
-// @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/17-modul-popup-lov.js?v=1.0.5
+// @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/17-modul-popup-lov.js?v=1.0.6
 // ==/UserScript==
 
 (function () {

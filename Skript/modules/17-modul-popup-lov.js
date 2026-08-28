@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Modul Popup LOV
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      1.0.5
+// @version      1.0.6
 // @description  Vynutí otevírání vyskakovacích oken pro vyhledávání jako skutečně vnořených modálních dialogů (iframe) s nezalamujícím se textem.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -32,17 +32,60 @@
         },
 
         interceptWindowOpen: function () {
-            const originalOpen = window.open;
-            window.open = function(url, name, features) {
-                // Pokud APEX žádá o otevření vyhledávacího okna, zachytíme to
-                if (url && (url.includes('wwv_flow.ajax') || url.includes('p_request=PLUGIN') || url.includes('f?p=110') || name === 'winLov' || name === 'PopupLov')) {
-                    RS.Modules.PopupLov.openInDialog(url);
-                    // Vrátíme falešný window objekt, kdyby na něj APEX volal např. .focus()
-                    return { focus: function(){}, close: function(){ RS.Modules.PopupLov.closeDialog(); } };
-                }
-                // Pro ostatní případy zachováme původní chování
-                return originalOpen.apply(this, arguments);
-            };
+            // Protože Tampermonkey spouští skript v izolovaném prostředí (sandbox kvůli GM_ funkcím),
+            // musíme injektovat kód pro přepis okna přímo do kontextu stránky.
+            const script = document.createElement('script');
+            script.textContent = `
+                (function() {
+                    const originalOpen = window.open;
+                    window.open = function(url, name, features) {
+                        // Pokud URL ukazuje na vnitřní stránky APEXu, zachytíme to
+                        if (url && (url.includes('wwv_flow.ajax') || url.includes('p_request=PLUGIN') || url.includes('f?p=110') || name === 'winLov' || name === 'PopupLov')) {
+                            if (window.RS && window.RS.Modules && window.RS.Modules.PopupLov) {
+                                window.RS.Modules.PopupLov.openInDialog(url);
+                                return { focus: function(){}, close: function(){ window.RS.Modules.PopupLov.closeDialog(); } };
+                            }
+                        }
+                        return originalOpen.apply(this, arguments);
+                    };
+
+                    // Přepis apex.navigation.popup, pokud se používá v novějším APEXu
+                    if (window.apex && apex.navigation && apex.navigation.popup) {
+                        const origApexPopup = apex.navigation.popup;
+                        apex.navigation.popup = function(pOptions) {
+                            if (pOptions && pOptions.url && (pOptions.url.includes('f?p=110') || pOptions.url.includes('wwv_flow.ajax'))) {
+                                if (window.RS && window.RS.Modules && window.RS.Modules.PopupLov) {
+                                    window.RS.Modules.PopupLov.openInDialog(pOptions.url);
+                                    return { focus: function(){}, close: function(){ window.RS.Modules.PopupLov.closeDialog(); } };
+                                }
+                            }
+                            return origApexPopup.apply(this, arguments);
+                        };
+                    }
+                    
+                    // Přepis starší funkce popupURL
+                    if (typeof window.popupURL === 'function') {
+                        const origPopupURL = window.popupURL;
+                        window.popupURL = function(url) {
+                            if (url && url.includes('f?p=')) {
+                                if (window.RS && window.RS.Modules && window.RS.Modules.PopupLov) {
+                                    window.RS.Modules.PopupLov.openInDialog(url);
+                                    return;
+                                }
+                            }
+                            origPopupURL.apply(this, arguments);
+                        };
+                    }
+                })();
+            `;
+            document.documentElement.appendChild(script);
+
+            // Aby mohl injektovaný skript volat funkce z našeho sandboxu, musíme je vystavit na unsafeWindow
+            // nebo přímo do window (pokud se to přes sandbox propíše - u unsafeWindow je to jistota)
+            let targetWindow = typeof unsafeWindow !== 'undefined' ? unsafeWindow : window;
+            targetWindow.RS = targetWindow.RS || {};
+            targetWindow.RS.Modules = targetWindow.RS.Modules || {};
+            targetWindow.RS.Modules.PopupLov = this;
         },
 
         openInDialog: function (url) {
