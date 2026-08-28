@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Modul Popup LOV
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      1.0.11
+// @version      1.0.12
 // @description  Vynutí otevírání vyskakovacích oken pro vyhledávání jako skutečně vnořených modálních dialogů (iframe) s nezalamujícím se textem.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -59,124 +59,75 @@
                             iframe.name = 'riscon-lov-iframe';
                             iframe.style.cssText = 'width:100%; height:100%; border:none; background:#fff;';
                             
-                            // Událost ONLOAD pro iframe – zde upravíme jeho obsah!
+                            // Událost ONLOAD pro iframe
                             iframe.onload = function() {
                                 try {
                                     let cw = iframe.contentWindow;
                                     let cd = iframe.contentDocument;
-
                                     if (!cw || !cd) return;
 
-                                    // 1. Zkusíme podstrčit window.opener
-                                    try {
-                                        Object.defineProperty(cw, 'opener', {
-                                            get: function() { return window; },
-                                            configurable: true
-                                        });
-                                    } catch(e) {
-                                        cw.opener = window;
-                                    }
-                                    
                                     cw.close = function() { closeDialog(); };
-                                    
                                     if (cw.apex && cw.apex.navigation && cw.apex.navigation.dialog) {
                                         cw.apex.navigation.dialog.close = function() { closeDialog(); };
                                     }
 
-                                    // 2. Patch APEX funkcí proti chybějícímu opener (přes Script tag pro obejití Eval CSP)
-                                    const patchOpenerFunc = (obj, objName, funcName) => {
-                                        try {
-                                            if (obj && typeof obj[funcName] === 'function') {
-                                                let funcStr = obj[funcName].toString();
-                                                if (funcStr.includes('opener')) {
-                                                    funcStr = funcStr.replace(/\bopener\b/g, 'parent');
-                                                    let s = cd.createElement('script');
-                                                    s.textContent = objName + '.' + funcName + ' = ' + funcStr + ';';
-                                                    cd.head.appendChild(s);
-                                                }
-                                            }
-                                        } catch(e) {}
-                                    };
-                                    patchOpenerFunc(cw, 'window', 'passBack');
-                                    patchOpenerFunc(cw, 'window', '_lov_passBack');
-                                    if (cw.apex && cw.apex.navigation && cw.apex.navigation.popup) {
-                                        patchOpenerFunc(cw.apex.navigation.popup, 'apex.navigation.popup', 'close');
-                                    }
-
-                                    // 3. ULTIMÁTNÍ ZÁCHYT: Odchycení kliknutí na LOV položky
-                                    // Pokud všechny přepisy selžou (např. kvůli CSP), chytíme kliknutí ručně
+                                    // 1. Záchyt kliknutí (ultimátní fallback) – reaguje na <a> i <tr> a čte onclick i href
                                     cd.addEventListener('click', function(e) {
-                                        let a = e.target.closest('a');
-                                        if (!a || !a.href) return;
+                                        let target = e.target.closest('a, tr, button');
+                                        if (!target) return;
                                         
-                                        if (a.href.startsWith('javascript:')) {
-                                            let code = a.href.substring(11);
-                                            if (code.includes('passBack(') || code.includes('popup.close(') || code.includes('_lov_passBack(')) {
-                                                e.preventDefault();
-                                                e.stopPropagation();
-                                                
-                                                let match = code.match(/\((.*)\)/);
-                                                if (match) {
-                                                    let argsStr = match[1];
-                                                    // Bezpečný parser argumentů
-                                                    let args = [];
-                                                    let currentArg = '';
-                                                    let inQuotes = false;
-                                                    let quoteChar = '';
-                                                    for (let i = 0; i < argsStr.length; i++) {
-                                                        let char = argsStr[i];
-                                                        if ((char === "'" || char === '"') && (i === 0 || argsStr[i-1] !== '\\\\')) {
-                                                            if (!inQuotes) { inQuotes = true; quoteChar = char; }
-                                                            else if (quoteChar === char) { inQuotes = false; }
-                                                            else { currentArg += char; }
-                                                        } else if (char === ',' && !inQuotes) {
-                                                            args.push(currentArg.trim());
-                                                            currentArg = '';
-                                                        } else {
-                                                            currentArg += char;
-                                                        }
-                                                    }
-                                                    args.push(currentArg.trim());
-                                                    
-                                                    let pReturn = args[0] || '';
-                                                    let pDisplay = args[1] || pReturn;
+                                        let code = (target.getAttribute('href') || '') + ' ' + (target.getAttribute('onclick') || '');
+                                        
+                                        if (code.includes('passBack') || code.includes('popup.close') || code.includes('_lov_passBack')) {
+                                            e.preventDefault();
+                                            e.stopPropagation();
+                                            
+                                            let match = code.match(/(?:passBack|close|_lov_passBack)\((.*?)\)/);
+                                            if (match) {
+                                                let argsStr = match[1];
+                                                let args = argsStr.split(',').map(s => s.trim().replace(/^['"]|['"]$/g, ''));
+                                                let pReturn = args[0] || '';
+                                                let pDisplay = args[1] || pReturn;
 
-                                                    // Najdeme jméno cílového pole z původní funkce
-                                                    let fallbackItemId = null;
-                                                    try {
-                                                        if (cw.passBack) {
-                                                            let m = cw.passBack.toString().match(/getElementById\(['"](.*?)['"]\)/);
-                                                            if (m) fallbackItemId = m[1];
-                                                        }
-                                                    } catch(err){}
-                                                    
-                                                    // 1. Zápis přes moderní APEX API v parent okně
-                                                    if (window.apex && window.apex.navigation && window.apex.navigation.popup && typeof window.apex.navigation.popup.close === 'function') {
-                                                        window.apex.navigation.popup.close(pReturn, pDisplay);
-                                                    } 
-                                                    // 2. Zápis přes ID položky v parent okně
-                                                    else if (fallbackItemId) {
-                                                        if (window.apex && window.apex.item) {
-                                                            window.apex.item(fallbackItemId).setValue(pReturn, pDisplay);
-                                                        } else {
-                                                            let item = window.document.getElementById(fallbackItemId);
-                                                            if (item) {
-                                                                item.value = pReturn;
-                                                                item.dispatchEvent(new Event('change', {bubbles: true}));
-                                                            }
-                                                        }
-                                                        closeDialog();
-                                                    }
-                                                    // 3. Pokud vše selže, aspoň zavřeme dialog
-                                                    else {
-                                                        closeDialog();
-                                                    }
+                                                // A) Extrakce jména políčka z URL (7. parametr v APEX f?p= syntaxi)
+                                                let targetItem = null;
+                                                let urlMatch = iframe.src.match(/f\?p=[^:]+:[^:]+:[^:]+:[^:]*:[^:]*:[^:]*:([^:&]+)/);
+                                                if (urlMatch && urlMatch[1]) {
+                                                    targetItem = urlMatch[1].split(',')[0];
                                                 }
+                                                
+                                                // B) Extrakce z původní funkce
+                                                let fallbackItemId = null;
+                                                try {
+                                                    if (cw.passBack) {
+                                                        let m = cw.passBack.toString().match(/getElementById\(['"](.*?)['"]\)/);
+                                                        if (m) fallbackItemId = m[1];
+                                                    }
+                                                } catch(err){}
+                                                
+                                                let finalItem = targetItem || fallbackItemId;
+
+                                                // ZÁPIS DO HLAVNÍHO OKNA
+                                                if (finalItem) {
+                                                    if (window.apex && window.apex.item) {
+                                                        window.apex.item(finalItem).setValue(pReturn, pDisplay);
+                                                    } else {
+                                                        let item = window.document.getElementById(finalItem);
+                                                        if (item) {
+                                                            item.value = pReturn;
+                                                            item.dispatchEvent(new Event('change', {bubbles: true}));
+                                                        }
+                                                    }
+                                                } else if (window.apex && window.apex.navigation && window.apex.navigation.popup && typeof window.apex.navigation.popup.close === 'function') {
+                                                    window.apex.navigation.popup.close(pReturn, pDisplay);
+                                                }
+                                                
+                                                closeDialog();
                                             }
                                         }
                                     }, true);
 
-                                    // 4. Vložení CSS proti zalamování
+                                    // 2. Vložení CSS proti zalamování
                                     const style = cd.createElement('style');
                                     style.textContent = \`
                                         body, .a-PopupLOV-results, .a-PopupLOV-dialog { white-space: nowrap !important; }
@@ -186,7 +137,7 @@
                                     \`;
                                     cd.head.appendChild(style);
 
-                                    // 5. Automatické roztažení podle obsahu
+                                    // 3. Automatické roztažení podle obsahu (bez zpožděného poskakování)
                                     let resizeDialog = () => {
                                         try {
                                             let contentWidth = cd.documentElement.scrollWidth;
@@ -195,17 +146,19 @@
                                                 let maxScreenWidth = window.innerWidth * 0.95;
                                                 if (targetWidth > maxScreenWidth) targetWidth = maxScreenWidth;
 
-                                                let currentWidth = parseInt(window.getComputedStyle(content).width, 10) || 800;
-                                                if (targetWidth > currentWidth + 20) { 
+                                                // Získáme aktuální inline šířku z elementu
+                                                let currentWidth = parseInt(content.style.width, 10) || 800;
+                                                if (targetWidth > currentWidth) { 
                                                     content.style.width = targetWidth + 'px';
                                                 }
                                             }
                                         } catch (e) {}
                                     };
 
-                                    setTimeout(resizeDialog, 250);
-                                    setTimeout(resizeDialog, 1000);
+                                    // Zavoláme hned po načtení
+                                    resizeDialog();
                                     
+                                    // Sledujeme dynamické změny uvnitř iframu
                                     const observer = new cw.MutationObserver(() => resizeDialog());
                                     observer.observe(cd.body, { childList: true, subtree: true, characterData: true });
 
