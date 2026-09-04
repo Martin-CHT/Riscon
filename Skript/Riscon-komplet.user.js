@@ -41,6 +41,7 @@
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/14-modul-pripnute-zahlavi.js?v=9.0.3
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/15-modul-auto-id-sekvence.js?v=5.4.3
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/16-modul-urazy-zamestnanec.js?v=1.2.1
+// @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/17-modul-suip-portal.js?v=1.0.0
 // ==/UserScript==
 
 (function () {
@@ -79,6 +80,7 @@
         RS.Modules.safeRun('UrazyAutofill', () => M.UrazyAutofill && M.UrazyAutofill.init());
         RS.Modules.safeRun('AutoIdSequence', () => M.AutoIdSequence && M.AutoIdSequence.init());
         RS.Modules.safeRun('UrazyZamestnanec', () => M.UrazyZamestnanec && M.UrazyZamestnanec.init());
+        RS.Modules.safeRun('SuipPortal', () => M.SuipPortal && M.SuipPortal.init());
     };
 
     // --- Spuštění ---
