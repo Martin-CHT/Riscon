@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: JSON nástroje
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      9.0.6
+// @version      9.0.7
 // @description  Panel pro vyplňování formulářů z JSON a vytěžování dat. Součást Riscon Suite – lze nainstalovat samostatně nebo načíst přes @require.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -39,24 +39,27 @@
             if (enabled && !btn && this.initialized) this.makeUI();
             if (RS.updateOpacity) RS.updateOpacity();
         },
+
         init: function () {
             const Config = RS.Config;
             const $ = RS.$;
             const pause = RS.pause;
-            const SIZE_KEY = 'apexJsonPanelConfig_v8';
-            const PANEL_MARGIN = 8;
-            const PANEL_MIN_WIDTH = 300;
-            const PANEL_MIN_HEIGHT = 200;
 
-            const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+            const SIZE_KEY = 'RISCON_JSON_PANEL_SIZE_V2';
+            const PANEL_MARGIN = 8;
+            const PANEL_MIN_WIDTH = 320;
+            const PANEL_MIN_HEIGHT = 140;
+
+            const clamp = (v, min, max) => Math.min(Math.max(v, min), Math.max(min, max));
+
             const getViewport = () => ({
-                w: Math.max(1, document.documentElement.clientWidth || window.innerWidth || 1),
-                h: Math.max(1, document.documentElement.clientHeight || window.innerHeight || 1)
+                w: window.innerWidth || document.documentElement.clientWidth || 1024,
+                h: window.innerHeight || document.documentElement.clientHeight || 768
             });
 
             const getPanelLimits = () => {
                 const vp = getViewport();
-                const maxW = Math.max(160, vp.w - PANEL_MARGIN * 2);
+                const maxW = Math.max(PANEL_MIN_WIDTH, vp.w - PANEL_MARGIN * 2);
                 const maxH = Math.max(140, vp.h - PANEL_MARGIN * 2);
                 return {
                     vp,
@@ -118,6 +121,9 @@
             const setVal = (id, val) => {
                 const el = document.getElementById(id); if (!el) return;
                 let v = normalizeTail(id, (id === 'P6206_EXACT_PLACE' || id === 'P6206_LEGAL_REFERENCES') ? stripColon(val) : val);
+                if (id === 'P6206_RANKING' && typeof v === 'string' && /^[1-9]\d*0$/.test(v.trim())) {
+                    v = v.trim().replace(/0$/, '');
+                }
                 if (el.tagName === 'SELECT') {
                     const sval = String(v ?? '').trim().toLowerCase();
                     const match = Array.from(el.options).find(o =>
@@ -235,7 +241,10 @@
                             return h.trim().replace(/^:\s*/, '');
                         } return '';
                     };
-                    const id = t.querySelector('th.si_th')?.textContent.match(/ID:\s*(\d+)/)?.[1] || '';
+                    let id = t.querySelector('th.si_th')?.textContent.match(/ID:\s*(\d+)/)?.[1] || '';
+                    if (/^[1-9]\d*0$/.test(id)) {
+                        id = id.replace(/0$/, '');
+                    }
                     let gravityVal = '';
                     const header = t.querySelector('th.si_th')?.innerText || '';
                     const match = header.match(/-\s*(.+)$/);

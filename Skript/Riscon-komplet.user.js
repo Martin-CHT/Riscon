@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Sdružené skripty
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      9.1.31
+// @version      9.1.32
 // @description  Sdružený balík nástrojů pro Riscon. Modulární verze – každý modul je samostatný soubor načítaný přes @require.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -28,7 +28,7 @@
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/01-styles.js?v=9.0.12
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/02-settings-ui.js?v=9.0.2
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/03-pulse.js?v=9.0.3
-// @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/04-modul-json.js?v=9.0.6
+// @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/04-modul-json.js?v=9.0.7
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/05-modul-rizika.js?v=9.0.1
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/06-modul-seznamy.js?v=9.0.5
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/07-modul-radky.js?v=9.0.2
@@ -39,7 +39,7 @@
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/12-modul-checklist-urazy.js?v=1.0.2
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/13-modul-autofill-urazy.js?v=9.0.2
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/14-modul-pripnute-zahlavi.js?v=9.0.3
-// @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/15-modul-auto-id-sekvence.js?v=5.4.3
+// @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/15-modul-auto-id-sekvence.js?v=5.5.0
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/16-modul-urazy-zamestnanec.js?v=1.2.1
 // @require      https://raw.githubusercontent.com/Martin-CHT/Riscon/master/Skript/modules/17-modul-suip-portal.js?v=1.0.0
 // ==/UserScript==

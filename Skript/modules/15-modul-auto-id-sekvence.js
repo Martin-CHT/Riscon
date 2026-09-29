@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Riscon: Auto ID sekvence
 // @namespace    https://github.com/Martin-CHT/Riscon
-// @version      5.4.3
+// @version      5.5.0
 // @description  Pri serverove chybe duplicity upravi manualni ID, poradi nebo nazev profilu a znovu stiskne stejne tlacitko.
 // @author       Martin
 // @copyright    2025-2026, Martin
@@ -24,7 +24,7 @@
     const RS = window.RisconSuite;
     RS.Modules = RS.Modules || {};
 
-    const MODULE_VERSION = '5.4.3';
+    const MODULE_VERSION = '5.5.0';
     const FIELD_RULES = [
         { id: 'P3140_MANUAL_ID', mode: 'number' },
         { id: 'P3101_MANUAL_ID', mode: 'number' },
@@ -43,17 +43,25 @@
     const ERROR_SELECTOR = [
         '.t-Alert--danger',
         '.t-Alert--warning',
+        '.t-Alert--error',
+        '.t-Alert',
         '.t-Body-alert',
         '.apex-page-errors',
         '.a-Notification',
+        '.a-Notification--error',
         '.a-Alert',
         '.t-Form-error',
         '.a-Form-error',
+        '.htmldbNotification',
+        '.htmldbError',
+        '.notification',
         '[role="alert"]',
         '[id*="error"]',
         '[id*="Error"]',
         '[class*="error"]',
-        '[class*="Error"]'
+        '[class*="Error"]',
+        '[id*="notification"]',
+        '[class*="notification"]'
     ].join(',');
 
     function normalizeText(text) {
@@ -222,6 +230,7 @@
             if (!this.hasTargetField()) return;
 
             this.initialized = true;
+            this.normalizeRankingZero();
             this.bindButtonMemory();
             this.bindErrorWatch();
             this.createStopButton();
@@ -234,6 +243,29 @@
 
         hasTargetField: function () {
             return getFieldRules().some(rule => !!document.getElementById(rule.id));
+        },
+
+        normalizeRankingZero: function () {
+            const el = document.getElementById('P6206_RANKING');
+            if (!el) return;
+
+            if (this.hasActiveDuplicateError()) return;
+
+            const val = getFieldValue('P6206_RANKING').trim();
+            if (/^[1-9]\d*0$/.test(val)) {
+                if (el.dataset.risconZeroStripped === val) return;
+
+                const newVal = val.replace(/0$/, '');
+                el.dataset.risconZeroStripped = newVal;
+                setFieldValue('P6206_RANKING', newVal);
+                console.info('[Riscon Auto ID] Odstranena koncova nula v poli P6206_RANKING:', val, '->', newVal);
+            }
+        },
+
+        hasActiveDuplicateError: function () {
+            const fields = this.getPresentFields();
+            if (fields.length === 0) return false;
+            return !!this.findDuplicateError(fields);
         },
 
         getPresentFields: function () {
@@ -279,6 +311,7 @@
         },
 
         scheduleDuplicateCheck: function () {
+            this.normalizeRankingZero();
             window.setTimeout(() => this.handleDuplicateErrorIfNeeded(), 150);
         },
 
@@ -413,8 +446,8 @@
                 getElementText(control)
             ].join(' ');
 
-            if (tag === 'button' || tag === 'input') return !!control.closest('form') || /submit|save|create|apply|uloz/i.test(raw);
-            if (tag === 'a' || control.getAttribute('role') === 'button') return /apex\.submit|doSubmit|submit|save|create|apply|uloz/i.test(raw);
+            if (tag === 'button' || tag === 'input') return !!control.closest('form') || /submit|save|create|apply|uloz|zmen|vytvor|pridat/i.test(raw);
+            if (tag === 'a' || control.getAttribute('role') === 'button') return /apex\.submit|doSubmit|submit|save|create|apply|uloz|zmen|vytvor|pridat/i.test(raw);
             return type === 'submit';
         },
 
@@ -441,7 +474,15 @@
             const error = this.findDuplicateError(fields);
             if (!error) return;
 
-            const record = readLastButton();
+            let record = readLastButton();
+            if (!record) {
+                const fallbackBtn = this.findStoredButton(null);
+                if (fallbackBtn) {
+                    this.rememberButton(fallbackBtn);
+                    record = readLastButton();
+                }
+            }
+
             if (!record) {
                 console.warn('[Riscon Auto ID] Duplicita zjistena, ale neni ulozene posledni tlacitko uzivatele.');
                 return;
@@ -545,18 +586,18 @@
             const normalized = normalizeText(text);
             if (!normalized) return false;
 
-            const hasDuplicateSignal = /duplik|duplicit|unique|ora-00001|jedinec|existuje|existuji|existujic|already exist|jiz .*pouzit|uz .*pouzit|pouzite|pouzity|pouzita|pouzito|jiz .*ulozen|uz .*ulozen|databaz/.test(normalized);
+            const hasDuplicateSignal = /duplik|duplicit|unique|ora-00001|jedinec|existuje|existuji|existujic|already exist|jiz .*pouzit|uz .*pouzit|pouzite|pouzity|pouzita|pouzito|jiz .*priraz|uz .*priraz|prirazen|prirazeno|prirazeny|prirazena|napiste jine|jiz .*ulozen|uz .*ulozen|databaz/.test(normalized);
             if (!hasDuplicateSignal) return false;
 
             const fieldMention = fields.some(field => {
                 return normalized.indexOf(normalizeText(field.id)) !== -1 ||
                     (field.label && normalized.indexOf(normalizeText(field.label)) !== -1);
             });
-            const manualContext = /manual[_ -]?id|cislo|cisel|rada|doklad|dokument|constraint|omezen/.test(normalized);
+            const manualContext = NUMBER_CONTEXT_RE.test(normalized) || /manual[_ -]?id|cislo|cisel|poradi|ranking|rada|doklad|dokument|constraint|omezen/.test(normalized);
             const profileContext = PROFILE_CONTEXT_RE.test(normalized);
             const targetFieldError = fields.some(field => this.isFieldMarkedInvalid(field.id));
 
-            return fieldMention || manualContext || profileContext || targetFieldError || /ora-00001|unique|jedinec/.test(normalized);
+            return fieldMention || manualContext || profileContext || targetFieldError || /ora-00001|unique|jedinec|napiste jine/.test(normalized);
         },
 
         isFieldMarkedInvalid: function (id) {
@@ -597,6 +638,10 @@
             if (exactIdMentioned.length > 0) return exactIdMentioned;
 
             if (hasNumberContext) {
+                if (/\bporadi\b|\branking\b/.test(normalized)) {
+                    const rankingFields = fields.filter(f => /RANKING|PORADI/i.test(f.id) || (f.label && /\bporadi\b/i.test(normalizeText(f.label))));
+                    if (rankingFields.length > 0) return rankingFields;
+                }
                 const numberFields = fields.filter(field => field.mode === 'number');
                 if (numberFields.length > 0) return numberFields;
             }
@@ -614,34 +659,42 @@
         },
 
         findStoredButton: function (record) {
-            if (record.id) {
-                const byId = document.getElementById(record.id);
-                if (byId) return byId;
+            if (record) {
+                if (record.id) {
+                    const byId = document.getElementById(record.id);
+                    if (byId) return byId;
+                }
+
+                const controls = Array.from(document.querySelectorAll(BUTTON_SELECTOR))
+                    .filter(control => this.isLikelyPageButton(control));
+
+                let best = null;
+                let bestScore = 0;
+
+                controls.forEach(control => {
+                    const form = control.closest('form');
+                    let score = 0;
+
+                    if (record.formId && form && form.id === record.formId) score += 2;
+                    if (record.name && (control.name === record.name || control.getAttribute('name') === record.name)) score += 3;
+                    if (record.value && (control.value === record.value || control.getAttribute('value') === record.value)) score += 3;
+                    if (record.text && normalizeText(getElementText(control) || control.value || '') === record.text) score += 2;
+                    if (record.tag && control.tagName.toLowerCase() === record.tag) score += 1;
+
+                    if (score > bestScore) {
+                        best = control;
+                        bestScore = score;
+                    }
+                });
+
+                if (bestScore > 0) return best;
             }
 
-            const controls = Array.from(document.querySelectorAll(BUTTON_SELECTOR))
-                .filter(control => this.isLikelyPageButton(control));
+            const primaryBtn = document.querySelector('.button-alt1, .t-Button--hot, button[id*="SAVE"], button[id*="CREATE"], button[id*="APPLY"], input[id*="SAVE"], input[id*="CREATE"]');
+            if (primaryBtn && this.isLikelyPageButton(primaryBtn)) return primaryBtn;
 
-            let best = null;
-            let bestScore = 0;
-
-            controls.forEach(control => {
-                const form = control.closest('form');
-                let score = 0;
-
-                if (record.formId && form && form.id === record.formId) score += 2;
-                if (record.name && (control.name === record.name || control.getAttribute('name') === record.name)) score += 3;
-                if (record.value && (control.value === record.value || control.getAttribute('value') === record.value)) score += 3;
-                if (record.text && normalizeText(getElementText(control) || control.value || '') === record.text) score += 2;
-                if (record.tag && control.tagName.toLowerCase() === record.tag) score += 1;
-
-                if (score > bestScore) {
-                    best = control;
-                    bestScore = score;
-                }
-            });
-
-            return bestScore > 0 ? best : null;
+            const allLikely = Array.from(document.querySelectorAll(BUTTON_SELECTOR)).filter(c => this.isLikelyPageButton(c));
+            return allLikely.find(c => /uloz|vytvor|zmen|save|create|apply/i.test(getElementText(c) || c.value || c.id || '')) || null;
         }
     };
 
